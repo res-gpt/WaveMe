@@ -112,11 +112,16 @@ function updateMessage(): void {
   if (document.body.classList.contains('pov-mode')) fitFullscreenText();
 }
 
-/** Fullscreen text is exactly 20 times the configured preview font size. */
+/** Maximize fullscreen font size while keeping the full glyph height inside the display. */
 function fitFullscreenText(): void {
   if (!document.body.classList.contains('pov-mode')) return;
-  const previewFontSize = Number(sizeInput.value) || 32;
-  marquee.style.fontSize = `${previewFontSize * 20}px`;
+  const displayHeight = display.clientHeight;
+  if (displayHeight <= 0) return;
+
+  // The marquee line-height is 1.1, so leave a small safety margin for glyph
+  // metrics and device/browser rounding instead of letting the text clip.
+  const fontSize = Math.floor(displayHeight / 1.15);
+  marquee.style.fontSize = `${fontSize}px`;
 }
 
 function updateStatus(isRunning: boolean): void {
