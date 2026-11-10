@@ -48,3 +48,10 @@ input[type="range"] { width: 100%; margin: 14px 0 0; accent-color: var(--mint); 
 .footnote { margin: 17px 4px 0; color: #778594; text-align: center; font-size: 11px; line-height: 1.6; }
 @media (min-width: 600px) { #app { padding-left: 26px; padding-right: 26px; } .display { height: 280px; } }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+
+.sensor-description { margin: 10px 0 0; color: #8d9aaa; font-size: 12px; line-height: 1.6; }
+.sensor-values { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 18px 0 0; }
+.sensor-values div { min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: #090d12; }
+.sensor-values dt { color: #8d9aaa; font-size: 11px; }
+.sensor-values dd { margin: 7px 0 0; overflow-wrap: anywhere; color: var(--mint); font: 12px "DM Mono", monospace; }
+.sensor-message { margin: 14px 0 0; color: #aebbc8; font-size: 12px; line-height: 1.5; }
