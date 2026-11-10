@@ -251,13 +251,38 @@ document.querySelectorAll<HTMLButtonElement>('.swatch').forEach((button) => {
   });
 });
 
-fullscreenBtn.addEventListener('click', async () => {
+async function enterPovFullscreen(): Promise<void> {
   try {
     if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
-    else await document.exitFullscreen();
+    document.body.classList.add('pov-mode');
+    if (!running) start();
   } catch {
     statusText.textContent = 'Vollbild nicht verfügbar';
   }
+}
+
+async function exitPovFullscreen(): Promise<void> {
+  document.body.classList.remove('pov-mode');
+  if (document.fullscreenElement) {
+    try {
+      await document.exitFullscreen();
+    } catch {
+      statusText.textContent = 'Vollbild konnte nicht beendet werden';
+    }
+  }
+}
+
+fullscreenBtn.addEventListener('click', () => {
+  if (document.body.classList.contains('pov-mode')) void exitPovFullscreen();
+  else void enterPovFullscreen();
+});
+
+display.addEventListener('click', () => {
+  if (document.body.classList.contains('pov-mode')) void exitPovFullscreen();
+});
+
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement) document.body.classList.remove('pov-mode');
 });
 
 // Keyboard-friendly and useful when running in a desktop browser.
