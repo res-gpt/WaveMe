@@ -49,6 +49,8 @@ let accelerationXDirection = 0;
 let previousAccelerationX: number | null = null;
 let lastAccelerationXReversalAt: number | null = null;
 let povScrollCalibrated = false;
+let povScrollDirection = 1;
+let povWaitingForDirectionChange = false;
 
 function normalizedMessage(): string {
   return messageInput.value.trim() || 'WAVE ME';
@@ -84,8 +86,18 @@ function frame(now: number): void {
     const pixelsPerSecond = povScrollCalibrated && povHalfSwingMs
       ? travelDistance / (povHalfSwingMs / 1000)
       : Number(speedInput.value);
-    povScrollOffset += pixelsPerSecond * elapsed;
-    if (travelDistance > 0 && povScrollOffset >= travelDistance) povScrollOffset -= travelDistance;
+    if (!povWaitingForDirectionChange) {
+      povScrollOffset += povScrollDirection * pixelsPerSecond * elapsed;
+      if (travelDistance > 0 && povScrollOffset >= travelDistance) {
+        povScrollOffset = travelDistance;
+        povWaitingForDirectionChange = true;
+        sensorMessage.textContent = 'Displayrand erreicht. Warte auf den nächsten Richtungswechsel.';
+      } else if (travelDistance > 0 && povScrollOffset <= 0) {
+        povScrollOffset = 0;
+        povWaitingForDirectionChange = true;
+        sensorMessage.textContent = 'Displayrand erreicht. Warte auf den nächsten Richtungswechsel.';
+      }
+    }
     marquee.style.transform = `translateX(${-povScrollOffset}px)`;
   } else {
     offset += Number(speedInput.value) * elapsed;
@@ -181,10 +193,17 @@ function onMotion(event: DeviceMotionEvent): void {
         if (halfSwing >= 250 && halfSwing <= 8000) {
           povHalfSwingMs = halfSwing;
           povScrollCalibrated = true;
-          sensorMessage.textContent = `X-Beschleunigung kalibriert: Der gesamte Text läuft in ${(halfSwing / 1000).toLocaleString('de-DE', { maximumFractionDigits: 2 })} s über das Display.`;
+          if (!(povWaitingForDirectionChange && document.body.classList.contains('pov-mode'))) {
+            sensorMessage.textContent = `X-Beschleunigung kalibriert: Der gesamte Text läuft in ${(halfSwing / 1000).toLocaleString('de-DE', { maximumFractionDigits: 2 })} s über das Display.`;
+          }
         }
       }
       lastAccelerationXReversalAt = now;
+      if (povWaitingForDirectionChange && document.body.classList.contains('pov-mode')) {
+        povScrollDirection *= -1;
+        povWaitingForDirectionChange = false;
+        sensorMessage.textContent = 'Richtungswechsel erkannt. Der Text scrollt zur gegenüberliegenden Seite.';
+      }
     }
     if (nextDirection !== 0) accelerationXDirection = nextDirection;
   }
@@ -193,7 +212,9 @@ function onMotion(event: DeviceMotionEvent): void {
   sensorValues.y.textContent = formatSensorValue(smoothedAcceleration.y);
   sensorValues.z.textContent = formatSensorValue(smoothedAcceleration.z);
   sensorStatus.textContent = 'Aktiv';
-  sensorMessage.textContent = 'Bewegungsdaten werden empfangen.';
+  if (!povScrollCalibrated && !povWaitingForDirectionChange) {
+    sensorMessage.textContent = 'Bewegungsdaten werden empfangen.';
+  }
 }
 
 function onOrientation(event: DeviceOrientationEvent): void {
@@ -253,6 +274,8 @@ async function startSensors(): Promise<void> {
     povHalfSwingMs = null;
     povScrollCalibrated = false;
     povScrollOffset = 0;
+    povScrollDirection = 1;
+    povWaitingForDirectionChange = false;
     window.addEventListener('devicemotion', onMotion);
     window.addEventListener('deviceorientation', onOrientation);
     sensorsActive = true;
@@ -317,6 +340,8 @@ async function enterPovFullscreen(): Promise<void> {
     if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
     document.body.classList.add('pov-mode');
     povScrollOffset = 0;
+    povScrollDirection = 1;
+    povWaitingForDirectionChange = false;
     if (!sensorsActive) sensorMessage.textContent = 'Starte die Sensoren und schwenke das Gerät einmal nach links und rechts, um die Scrollgeschwindigkeit zu kalibrieren.';
     else sensorMessage.textContent = 'Schwenke das Gerät einmal nach links und rechts, um die Scrollgeschwindigkeit zu kalibrieren.';
     if (!running) start();
