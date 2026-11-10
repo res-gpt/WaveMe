@@ -93,7 +93,9 @@ let color = '#49f5d0';
 let povScrollOffset = 0;
 let gravityCorrectedMagnitude: number | null = null;
 let povScrollDirection = 1;
-let previousAlphaDirection: number | null = null;
+let gammaPeak: number | null = null;
+let gammaTrough: number | null = null;
+let gammaReversalArmed = true;
 let povWaitingForDirectionChange = false;
 // Physical volume keys mark the outer scroll positions in fullscreen mode.
 let povLeftEndpoint: number | null = null;
@@ -140,16 +142,31 @@ function frame(now: number): void {
       ? Number(speedInput.value)
       : Math.max(0, gravityCorrectedMagnitude) * 60;
 
-    // Alpha controls direction only. Scroll speed above depends only on
-    // the acceleration-vector magnitude minus gravity (9.81 m/s²).
-    const alpha = smoothedOrientation.alpha;
-    const relativeAlpha = alpha !== null ? alpha - (neutralAlpha ?? 0) : 0;
-    if (sensorsActive && alpha !== null && Math.abs(relativeAlpha) > POV_DEAD_ZONE_DEGREES) {
-      const alphaDirection = relativeAlpha > 0 ? -1 : 1;
-      if (alphaDirection !== previousAlphaDirection) {
-        povScrollDirection = alphaDirection;
-        povWaitingForDirectionChange = false;
-        previousAlphaDirection = alphaDirection;
+    // Gamma controls direction only: a 5° drop from a local peak reverses
+    // the scroll direction. After that, wait for a 5° rise from the trough
+    // before re-arming, so one sustained movement cannot trigger repeatedly.
+    // Scroll speed depends only on |a| - gravity (9.81 m/s²).
+    const gamma = smoothedOrientation.gamma;
+    if (sensorsActive && gamma !== null) {
+      if (gammaPeak === null || gammaTrough === null) {
+        gammaPeak = gamma;
+        gammaTrough = gamma;
+      } else if (gammaReversalArmed) {
+        gammaPeak = Math.max(gammaPeak, gamma);
+        if (gammaPeak - gamma >= 5) {
+          povScrollDirection *= -1;
+          povWaitingForDirectionChange = false;
+          gammaTrough = gamma;
+          gammaReversalArmed = false;
+        }
+      } else {
+        gammaTrough = Math.min(gammaTrough, gamma);
+        if (gamma - gammaTrough >= 5) {
+          povScrollDirection *= -1;
+          povWaitingForDirectionChange = false;
+          gammaPeak = gamma;
+          gammaReversalArmed = true;
+        }
       }
     }
 
@@ -158,7 +175,7 @@ function frame(now: number): void {
       if (povScrollOffset >= upperBound) {
         povScrollOffset = upperBound;
         povWaitingForDirectionChange = true;
-        sensorMessage.textContent = 'Linker Endpunkt erreicht. Drehe das Gerät in die Gegenrichtung (Alpha), um weiterzuscrollen.';
+        sensorMessage.textContent = 'Linker Endpunkt erreicht. Drehe das Gerät in die Gegenrichtung (Gamma), um weiterzuscrollen.';
       } else if (povScrollOffset <= lowerBound) {
         povScrollOffset = lowerBound;
         povWaitingForDirectionChange = true;
@@ -319,7 +336,9 @@ async function startSensors(): Promise<void> {
     gravityCorrectedMagnitude = null;
     povScrollOffset = 0;
     povScrollDirection = 1;
-    previousAlphaDirection = null;
+    gammaPeak = null;
+    gammaTrough = null;
+    gammaReversalArmed = true;
     povWaitingForDirectionChange = false;
     window.addEventListener('devicemotion', onMotion);
     window.addEventListener('deviceorientation', onOrientation);
@@ -386,6 +405,9 @@ async function enterPovFullscreen(): Promise<void> {
     document.body.classList.add('pov-mode');
     povScrollOffset = 0;
     povScrollDirection = 1;
+    gammaPeak = smoothedOrientation.gamma;
+    gammaTrough = smoothedOrientation.gamma;
+    gammaReversalArmed = true;
     povWaitingForDirectionChange = false;
     povLeftEndpoint = null;
     povRightEndpoint = null;
