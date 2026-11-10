@@ -108,7 +108,7 @@ function updatePovPreview(): void {
   const sensitivity = Number(povSensitivityInput.value);
   const relativeGamma = gamma !== null ? gamma - (neutralGamma ?? 0) : 0;
   const shift = povPreviewToggle.checked && gamma !== null
-    ? Math.max(-70, Math.min(70, relativeGamma * sensitivity))
+    ? Math.max(-70, Math.min(70, -relativeGamma * sensitivity))
     : 0;
   marquee.style.setProperty('--pov-shift', `${shift.toFixed(1)}px`);
 }
