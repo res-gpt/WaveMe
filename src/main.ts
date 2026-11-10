@@ -43,6 +43,11 @@ let offset = 0;
 let previousFrame = 0;
 let animationId = 0;
 let color = '#49f5d0';
+let povScrollOffset = 0;
+let povHalfSwingMs: number | null = null;
+let gammaDirection = 0;
+let lastDirectionChangeAt: number | null = null;
+let povScrollCalibrated = false;
 
 function normalizedMessage(): string {
   return messageInput.value.trim() || 'WAVE ME';
@@ -71,9 +76,16 @@ function frame(now: number): void {
   previousFrame = now;
 
   if (document.body.classList.contains('pov-mode')) {
-    // Immersive POV mode is positioned by live sensor tilt, not marquee scrolling.
-    updatePovPreview();
-    marquee.style.transform = 'translateX(var(--pov-shift, 0px))';
+    // After measuring a left/right sway, make the whole message cross the screen
+    // in the time taken for one half-swing. Until then, use the normal speed setting.
+    const firstTextWidth = marquee.scrollWidth / 2;
+    const travelDistance = firstTextWidth + display.clientWidth;
+    const pixelsPerSecond = povScrollCalibrated && povHalfSwingMs
+      ? travelDistance / (povHalfSwingMs / 1000)
+      : Number(speedInput.value);
+    povScrollOffset += pixelsPerSecond * elapsed;
+    if (travelDistance > 0 && povScrollOffset >= travelDistance) povScrollOffset -= travelDistance;
+    marquee.style.transform = `translateX(${-povScrollOffset}px)`;
   } else {
     offset += Number(speedInput.value) * elapsed;
     const firstTextWidth = marquee.scrollWidth / 2;
@@ -165,7 +177,27 @@ function onOrientation(event: DeviceOrientationEvent): void {
   orientationEventsSeen += 1;
   smoothedOrientation.alpha = smoothValue(smoothedOrientation.alpha, event.alpha);
   smoothedOrientation.beta = smoothValue(smoothedOrientation.beta, event.beta);
+  const previousGamma = smoothedOrientation.gamma;
   smoothedOrientation.gamma = smoothValue(smoothedOrientation.gamma, event.gamma);
+  const gamma = smoothedOrientation.gamma;
+  if (sensorsActive && gamma !== null && previousGamma !== null) {
+    const delta = gamma - previousGamma;
+    const nextDirection = Math.abs(delta) >= 0.35 ? Math.sign(delta) : 0;
+    if (nextDirection !== 0 && gammaDirection !== 0 && nextDirection !== gammaDirection) {
+      const now = performance.now();
+      if (lastDirectionChangeAt !== null) {
+        const halfSwing = now - lastDirectionChangeAt;
+        // Ignore sensor noise and implausibly slow pauses between deliberate swings.
+        if (halfSwing >= 250 && halfSwing <= 8000) {
+          povHalfSwingMs = halfSwing;
+          povScrollCalibrated = true;
+          sensorMessage.textContent = `Schwenkgeschwindigkeit erkannt: Der gesamte Text läuft in ${(halfSwing / 1000).toLocaleString('de-DE', { maximumFractionDigits: 2 })} s über das Display.`;
+        }
+      }
+      lastDirectionChangeAt = now;
+    }
+    if (nextDirection !== 0) gammaDirection = nextDirection;
+  }
   sensorValues.alpha.textContent = formatSensorValue(smoothedOrientation.alpha);
   sensorValues.beta.textContent = formatSensorValue(smoothedOrientation.beta);
   sensorValues.gamma.textContent = formatSensorValue(smoothedOrientation.gamma);
@@ -212,6 +244,11 @@ async function startSensors(): Promise<void> {
     orientationEventsSeen = 0;
     smoothedAcceleration = { x: null, y: null, z: null };
     smoothedOrientation = { alpha: null, beta: null, gamma: null };
+    gammaDirection = 0;
+    lastDirectionChangeAt = null;
+    povHalfSwingMs = null;
+    povScrollCalibrated = false;
+    povScrollOffset = 0;
     window.addEventListener('devicemotion', onMotion);
     window.addEventListener('deviceorientation', onOrientation);
     sensorsActive = true;
@@ -275,6 +312,9 @@ async function enterPovFullscreen(): Promise<void> {
   try {
     if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
     document.body.classList.add('pov-mode');
+    povScrollOffset = 0;
+    if (!sensorsActive) sensorMessage.textContent = 'Starte die Sensoren und schwenke das Gerät einmal nach links und rechts, um die Scrollgeschwindigkeit zu kalibrieren.';
+    else sensorMessage.textContent = 'Schwenke das Gerät einmal nach links und rechts, um die Scrollgeschwindigkeit zu kalibrieren.';
     if (!running) start();
   } catch {
     statusText.textContent = 'Vollbild nicht verfügbar';
