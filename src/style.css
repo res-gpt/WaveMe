@@ -120,10 +120,9 @@ body.blink-enabled .marquee {
   body.blink-enabled .marquee { animation: none; }
 }
 
-/* In immersive mode, use almost the full screen height for the letters. */
+/* Fullscreen font size is calculated in JavaScript to fit the complete message. */
 body.pov-mode .marquee {
-  font-size: 88dvh !important;
-  line-height: 1;
+  line-height: 1.1;
   padding-left: 0;
 }
 
