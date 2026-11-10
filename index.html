@@ -46,6 +46,16 @@
             <input id="sizeInput" type="range" min="24" max="112" step="2" value="56" />
           </div>
 
+          <div class="setting blink-setting">
+            <div class="pov-toggle-row">
+              <label class="pov-toggle-label"><input id="blinkToggle" type="checkbox" checked /> Blinkeffekt aktivieren</label>
+              <span class="muted">Ein / Aus</span>
+            </div>
+            <div class="setting-heading"><label for="blinkSpeedInput">Blinkgeschwindigkeit</label><output id="blinkSpeedOutput">1 s</output></div>
+            <input id="blinkSpeedInput" type="range" min="0.2" max="2.5" step="0.1" value="1" />
+            <div class="range-labels"><span>Schnell</span><span>Langsam</span></div>
+          </div>
+
           <div class="setting">
             <div class="setting-heading"><span>Textfarbe</span><span class="muted">Kontrastreich</span></div>
             <div class="swatches" role="group" aria-label="Textfarbe">
