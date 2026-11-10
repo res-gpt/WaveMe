@@ -155,12 +155,12 @@ function frame(now: number): void {
     }
     // Apply the same tilt response as the preview, expanded to the full
     // available text travel so the movement remains clearly visible fullscreen.
-    const gamma = smoothedOrientation.gamma;
-    const relativeGamma = gamma !== null ? gamma - (neutralGamma ?? 0) : 0;
-    const outsideDeadZone = Math.abs(relativeGamma) <= POV_DEAD_ZONE_DEGREES
+    const alpha = smoothedOrientation.alpha;
+    const relativeAlpha = alpha !== null ? alpha - (neutralAlpha ?? 0) : 0;
+    const outsideDeadZone = Math.abs(relativeAlpha) <= POV_DEAD_ZONE_DEGREES
       ? 0
-      : Math.sign(relativeGamma) * (Math.abs(relativeGamma) - POV_DEAD_ZONE_DEGREES);
-    const previewEquivalentShift = sensorsActive && gamma !== null
+      : Math.sign(relativeAlpha) * (Math.abs(relativeAlpha) - POV_DEAD_ZONE_DEGREES);
+    const previewEquivalentShift = sensorsActive && alpha !== null
       ? Math.max(-70, Math.min(70, -outsideDeadZone * Number(povSensitivityInput.value)))
       : 0;
     const fullscreenTiltShift = travelDistance > 0
@@ -204,6 +204,7 @@ function smoothValue(previous: number | null, next: number | null): number | nul
 }
 
 let neutralGamma: number | null = null;
+let neutralAlpha: number | null = null;
 let displayedPovShift = 0;
 const POV_DEAD_ZONE_DEGREES = 1.2;
 const POV_SHIFT_SMOOTHING = 0.18;
@@ -233,8 +234,9 @@ function calibratePovNeutralPosition(): void {
     return;
   }
   neutralGamma = smoothedOrientation.gamma;
+  neutralAlpha = smoothedOrientation.alpha;
   updatePovPreview();
-  sensorMessage.textContent = `Neutralposition gesetzt (γ ${neutralGamma.toFixed(1)}°). Neige das Gerät aus dieser Position, um die Vorschau zu testen.`;
+  sensorMessage.textContent = `Neutralposition gesetzt (γ ${neutralGamma.toFixed(1)}°, α ${neutralAlpha?.toFixed(1) ?? 'nicht verfügbar'}°). Vorschau nutzt γ, Vollbildneigung nutzt α.`;
 }
 
 function formatSensorValue(value: number | null | undefined): string {
