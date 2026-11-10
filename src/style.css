@@ -55,3 +55,8 @@ input[type="range"] { width: 100%; margin: 14px 0 0; accent-color: var(--mint); 
 .sensor-values dt { color: #8d9aaa; font-size: 11px; }
 .sensor-values dd { margin: 7px 0 0; overflow-wrap: anywhere; color: var(--mint); font: 12px "DM Mono", monospace; }
 .sensor-message { margin: 14px 0 0; color: #aebbc8; font-size: 12px; line-height: 1.5; }
+
+.marquee { transform: translateX(var(--pov-shift, 0px)); }
+.pov-toggle-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 16px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: #090d12; }
+.pov-toggle-label { display: flex; align-items: center; gap: 9px; font-size: 12px; }
+.pov-toggle-label input { accent-color: var(--mint); width: 16px; height: 16px; }
