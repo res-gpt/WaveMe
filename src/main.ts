@@ -91,10 +91,9 @@ let previousFrame = 0;
 let animationId = 0;
 let color = '#49f5d0';
 let povScrollOffset = 0;
-let peakAbsoluteAccelerationX: number | null = null;
-let peakDropTriggered = false;
 let gravityCorrectedMagnitude: number | null = null;
 let povScrollDirection = 1;
+let previousAlphaDirection: number | null = null;
 let povWaitingForDirectionChange = false;
 // Physical volume keys mark the outer scroll positions in fullscreen mode.
 let povLeftEndpoint: number | null = null;
@@ -141,32 +140,32 @@ function frame(now: number): void {
       ? Number(speedInput.value)
       : Math.max(0, gravityCorrectedMagnitude) * 60;
 
+    // Alpha controls direction only. Scroll speed above depends only on
+    // the acceleration-vector magnitude minus gravity (9.81 m/s²).
+    const alpha = smoothedOrientation.alpha;
+    const relativeAlpha = alpha !== null ? alpha - (neutralAlpha ?? 0) : 0;
+    if (sensorsActive && alpha !== null && Math.abs(relativeAlpha) > POV_DEAD_ZONE_DEGREES) {
+      const alphaDirection = relativeAlpha > 0 ? -1 : 1;
+      if (alphaDirection !== previousAlphaDirection) {
+        povScrollDirection = alphaDirection;
+        povWaitingForDirectionChange = false;
+        previousAlphaDirection = alphaDirection;
+      }
+    }
+
     if (!povWaitingForDirectionChange) {
       povScrollOffset += povScrollDirection * pixelsPerSecond * elapsed;
       if (povScrollOffset >= upperBound) {
         povScrollOffset = upperBound;
         povWaitingForDirectionChange = true;
-        sensorMessage.textContent = 'Linker Endpunkt erreicht. Warte auf den nächsten X-Richtungswechsel.';
+        sensorMessage.textContent = 'Linker Endpunkt erreicht. Drehe das Gerät in die Gegenrichtung (Alpha), um weiterzuscrollen.';
       } else if (povScrollOffset <= lowerBound) {
         povScrollOffset = lowerBound;
         povWaitingForDirectionChange = true;
-        sensorMessage.textContent = 'Rechter Endpunkt erreicht. Warte auf den nächsten X-Richtungswechsel.';
+        sensorMessage.textContent = 'Rechter Endpunkt erreicht. Drehe das Gerät in die Gegenrichtung (Alpha), um weiterzuscrollen.';
       }
     }
-    // Apply the same tilt response as the preview, expanded to the full
-    // available text travel so the movement remains clearly visible fullscreen.
-    const gamma = smoothedOrientation.gamma;
-    const relativeGamma = gamma !== null ? gamma - (neutralGamma ?? 0) : 0;
-    const outsideDeadZone = Math.abs(relativeGamma) <= POV_DEAD_ZONE_DEGREES
-      ? 0
-      : Math.sign(relativeGamma) * (Math.abs(relativeGamma) - POV_DEAD_ZONE_DEGREES);
-    const previewEquivalentShift = sensorsActive && gamma !== null
-      ? Math.max(-70, Math.min(70, -outsideDeadZone * Number(povSensitivityInput.value)))
-      : 0;
-    const fullscreenTiltShift = travelDistance > 0
-      ? (previewEquivalentShift / 70) * travelDistance
-      : 0;
-    marquee.style.transform = `translateX(${-povScrollOffset + fullscreenTiltShift}px)`;
+    marquee.style.transform = `translateX(${-povScrollOffset}px)`;
   } else {
     offset += Number(speedInput.value) * elapsed;
     const firstTextWidth = marquee.scrollWidth / 2;
@@ -204,6 +203,7 @@ function smoothValue(previous: number | null, next: number | null): number | nul
 }
 
 let neutralGamma: number | null = null;
+let neutralAlpha: number | null = null;
 let displayedPovShift = 0;
 const POV_DEAD_ZONE_DEGREES = 1.2;
 const POV_SHIFT_SMOOTHING = 0.18;
@@ -233,8 +233,9 @@ function calibratePovNeutralPosition(): void {
     return;
   }
   neutralGamma = smoothedOrientation.gamma;
+  neutralAlpha = smoothedOrientation.alpha;
   updatePovPreview();
-  sensorMessage.textContent = `Neutralposition gesetzt (γ ${neutralGamma.toFixed(1)}°). Neige das Gerät aus dieser Position, um die Vorschau zu testen.`;
+  sensorMessage.textContent = `Neutralposition gesetzt (γ ${neutralGamma.toFixed(1)}°, α ${neutralAlpha?.toFixed(1) ?? 'nicht verfügbar'}°). Vorschau nutzt γ, Vollbildneigung nutzt α.`;
 }
 
 function formatSensorValue(value: number | null | undefined): string {
@@ -248,26 +249,6 @@ function onMotion(event: DeviceMotionEvent): void {
   smoothedAcceleration.y = smoothValue(smoothedAcceleration.y, acceleration?.y ?? null);
   smoothedAcceleration.z = smoothValue(smoothedAcceleration.z, acceleration?.z ?? null);
 
-  // Detect a reversal when |X| has fallen by at least 1 m/s² from its peak.
-  const accelerationX = smoothedAcceleration.x;
-  if (sensorsActive && accelerationX !== null) {
-    const absoluteX = Math.abs(accelerationX);
-    if (peakAbsoluteAccelerationX === null) {
-      peakAbsoluteAccelerationX = absoluteX;
-    } else if (absoluteX > peakAbsoluteAccelerationX) {
-      // A new peak arms the next drop-based reversal.
-      peakAbsoluteAccelerationX = absoluteX;
-      peakDropTriggered = false;
-    } else if (!peakDropTriggered && peakAbsoluteAccelerationX - absoluteX >= 1) {
-      peakDropTriggered = true;
-      peakAbsoluteAccelerationX = absoluteX;
-      if (document.body.classList.contains('pov-mode')) {
-        povScrollDirection *= -1;
-        povWaitingForDirectionChange = false;
-        sensorMessage.textContent = 'X-Betrag ist um mindestens 1 m/s² vom Höchstwert gefallen. Scrollrichtung gewechselt.';
-      }
-    }
-  }
   sensorValues.vector.textContent = `(${formatSensorValue(smoothedAcceleration.x)}, ${formatSensorValue(smoothedAcceleration.y)}, ${formatSensorValue(smoothedAcceleration.z)}) m/s²`;
   const { x, y, z } = smoothedAcceleration;
   if (x !== null && y !== null && z !== null) {
@@ -335,11 +316,10 @@ async function startSensors(): Promise<void> {
     orientationEventsSeen = 0;
     smoothedAcceleration = { x: null, y: null, z: null };
     smoothedOrientation = { alpha: null, beta: null, gamma: null };
-    peakAbsoluteAccelerationX = null;
-    peakDropTriggered = false;
     gravityCorrectedMagnitude = null;
     povScrollOffset = 0;
     povScrollDirection = 1;
+    previousAlphaDirection = null;
     povWaitingForDirectionChange = false;
     window.addEventListener('devicemotion', onMotion);
     window.addEventListener('deviceorientation', onOrientation);
