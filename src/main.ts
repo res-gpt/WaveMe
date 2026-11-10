@@ -385,6 +385,7 @@ async function enterPovFullscreen(): Promise<void> {
   try {
     if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
     document.body.classList.add('pov-mode');
+    offset = 0;
     povScrollOffset = 0;
     offset = 0;
     povScrollDirection = 1;
