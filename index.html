@@ -77,6 +77,13 @@
             <label class="pov-toggle-label"><input id="povPreviewToggle" type="checkbox" /> Neigungstest für Textanzeige</label>
             <span class="muted">Experimentell</span>
           </div>
+          <div class="setting pov-calibration">
+            <div class="setting-heading"><label for="povSensitivityInput">Neigungsempfindlichkeit</label><output id="povSensitivityOutput">2,2×</output></div>
+            <input id="povSensitivityInput" type="range" min="0.5" max="4" step="0.1" value="2.2" />
+            <div class="range-labels"><span>Ruhig</span><span>Reaktionsstark</span></div>
+            <button id="povCalibrateBtn" class="secondary-button calibration-button" type="button">Neutralposition festlegen</button>
+            <p class="calibration-help">Halte das Handy in deiner bevorzugten Position und lege diese als neutral fest. Die Vorschau reagiert dann auf Abweichungen davon.</p>
+          </div>
           <p id="sensorMessage" class="sensor-message" role="status" aria-live="polite">Sensoren sind noch nicht gestartet.</p>
         </section>
 

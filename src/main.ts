@@ -23,6 +23,9 @@ const sensorStopBtn = byId<HTMLButtonElement>('sensorStopBtn');
 const sensorStatus = byId<HTMLSpanElement>('sensorStatus');
 const sensorMessage = byId<HTMLParagraphElement>('sensorMessage');
 const povPreviewToggle = byId<HTMLInputElement>('povPreviewToggle');
+const povSensitivityInput = byId<HTMLInputElement>('povSensitivityInput');
+const povSensitivityOutput = byId<HTMLOutputElement>('povSensitivityOutput');
+const povCalibrateBtn = byId<HTMLButtonElement>('povCalibrateBtn');
 const sensorValues = {
   x: byId<HTMLElement>('accelX'),
   y: byId<HTMLElement>('accelY'),
@@ -98,10 +101,30 @@ function smoothValue(previous: number | null, next: number | null): number | nul
   return previous === null ? next : previous + SENSOR_SMOOTHING * (next - previous);
 }
 
+let neutralGamma: number | null = null;
+
 function updatePovPreview(): void {
   const gamma = smoothedOrientation.gamma;
-  const shift = povPreviewToggle.checked && gamma !== null ? Math.max(-70, Math.min(70, gamma * 2.2)) : 0;
+  const sensitivity = Number(povSensitivityInput.value);
+  const relativeGamma = gamma !== null ? gamma - (neutralGamma ?? 0) : 0;
+  const shift = povPreviewToggle.checked && gamma !== null
+    ? Math.max(-70, Math.min(70, -relativeGamma * sensitivity))
+    : 0;
   marquee.style.setProperty('--pov-shift', `${shift.toFixed(1)}px`);
+}
+
+function updatePovSensitivityLabel(): void {
+  povSensitivityOutput.value = `${Number(povSensitivityInput.value).toLocaleString('de-DE', { maximumFractionDigits: 1 })}×`;
+}
+
+function calibratePovNeutralPosition(): void {
+  if (smoothedOrientation.gamma === null) {
+    sensorMessage.textContent = 'Bitte starte zuerst die Sensoren und warte auf Orientierungsdaten.';
+    return;
+  }
+  neutralGamma = smoothedOrientation.gamma;
+  updatePovPreview();
+  sensorMessage.textContent = `Neutralposition gesetzt (γ ${neutralGamma.toFixed(1)}°). Neige das Gerät aus dieser Position, um die Vorschau zu testen.`;
 }
 
 function formatSensorValue(value: number | null | undefined): string {
@@ -186,6 +209,11 @@ async function startSensors(): Promise<void> {
 sensorStartBtn.addEventListener('click', () => void startSensors());
 sensorStopBtn.addEventListener('click', stopSensors);
 povPreviewToggle.addEventListener('change', updatePovPreview);
+povSensitivityInput.addEventListener('input', () => {
+  updatePovSensitivityLabel();
+  updatePovPreview();
+});
+povCalibrateBtn.addEventListener('click', calibratePovNeutralPosition);
 
 window.addEventListener('pagehide', () => {
   window.removeEventListener('devicemotion', onMotion);
@@ -236,6 +264,7 @@ marquee.style.fontSize = `${sizeInput.value}px`;
 marquee.style.color = color;
 sizeOutput.value = `${sizeInput.value} px`;
 speedOutput.value = `${speedInput.value} px/s`;
+updatePovSensitivityLabel();
 updateStatus(false);
 
 // Sensor diagnostics are a first step toward the later POV mode; no POV rendering yet.
