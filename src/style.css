@@ -130,3 +130,8 @@ body.pov-mode .marquee {
 /* Show the complete acceleration vector on one full-width row. */
 .sensor-values .acceleration-vector { grid-column: 1 / -1; }
 .sensor-values .acceleration-vector dd { font-size: 14px; }
+
+
+/* Keep scalar acceleration diagnostics readable across the full panel width. */
+.sensor-values .acceleration-magnitude { grid-column: 1 / -1; }
+.sensor-values .acceleration-magnitude dd { font-size: 14px; }
