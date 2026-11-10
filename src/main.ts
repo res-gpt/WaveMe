@@ -361,7 +361,7 @@ function updateBlinkSettings(): void {
   document.body.classList.toggle('blink-enabled', blinkToggle.checked);
   const duration = Number(blinkSpeedInput.value);
   document.documentElement.style.setProperty('--blink-duration', `${duration}s`);
-  blinkSpeedOutput.value = `${duration.toLocaleString('de-DE', { maximumFractionDigits: 1 })} s`;
+  blinkSpeedOutput.value = `${duration.toLocaleString('de-DE', { maximumFractionDigits: 2 })} s`;
 }
 
 blinkToggle.addEventListener('change', updateBlinkSettings);
