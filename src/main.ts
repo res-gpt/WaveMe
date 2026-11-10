@@ -162,8 +162,8 @@ function frame(now: number): void {
       } else {
         gammaTrough = Math.min(gammaTrough, gamma);
         if (gamma - gammaTrough >= 5) {
-          povScrollDirection *= -1;
-          povWaitingForDirectionChange = false;
+          // The device has moved back upward enough; start tracking the next peak.
+          // Reversal itself is triggered only by a 5° drop from that peak.
           gammaPeak = gamma;
           gammaReversalArmed = true;
         }
