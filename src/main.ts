@@ -18,6 +18,18 @@ const sizeOutput = byId<HTMLOutputElement>('sizeOutput');
 const statusText = byId<HTMLSpanElement>('statusText');
 const statusDot = byId<HTMLSpanElement>('statusDot');
 const fullscreenBtn = byId<HTMLButtonElement>('fullscreenBtn');
+const sensorStartBtn = byId<HTMLButtonElement>('sensorStartBtn');
+const sensorStopBtn = byId<HTMLButtonElement>('sensorStopBtn');
+const sensorStatus = byId<HTMLSpanElement>('sensorStatus');
+const sensorMessage = byId<HTMLParagraphElement>('sensorMessage');
+const sensorValues = {
+  x: byId<HTMLElement>('accelX'),
+  y: byId<HTMLElement>('accelY'),
+  z: byId<HTMLElement>('accelZ'),
+  alpha: byId<HTMLElement>('orientAlpha'),
+  beta: byId<HTMLElement>('orientBeta'),
+  gamma: byId<HTMLElement>('orientGamma'),
+};
 
 let running = false;
 let offset = 0;
@@ -73,6 +85,85 @@ function stop(): void {
   updateStatus(false);
 }
 
+let sensorsActive = false;
+let motionEventsSeen = 0;
+let orientationEventsSeen = 0;
+
+function formatSensorValue(value: number | null | undefined): string {
+  return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(2) : 'nicht verfügbar';
+}
+
+function onMotion(event: DeviceMotionEvent): void {
+  motionEventsSeen += 1;
+  sensorValues.x.textContent = formatSensorValue(event.accelerationIncludingGravity?.x);
+  sensorValues.y.textContent = formatSensorValue(event.accelerationIncludingGravity?.y);
+  sensorValues.z.textContent = formatSensorValue(event.accelerationIncludingGravity?.z);
+  sensorStatus.textContent = 'Aktiv';
+  sensorMessage.textContent = 'Bewegungsdaten werden empfangen.';
+}
+
+function onOrientation(event: DeviceOrientationEvent): void {
+  orientationEventsSeen += 1;
+  sensorValues.alpha.textContent = formatSensorValue(event.alpha);
+  sensorValues.beta.textContent = formatSensorValue(event.beta);
+  sensorValues.gamma.textContent = formatSensorValue(event.gamma);
+}
+
+function stopSensors(): void {
+  window.removeEventListener('devicemotion', onMotion);
+  window.removeEventListener('deviceorientation', onOrientation);
+  sensorsActive = false;
+  sensorStartBtn.disabled = false;
+  sensorStopBtn.disabled = true;
+  sensorStatus.textContent = 'Nicht aktiv';
+  if (motionEventsSeen === 0 && orientationEventsSeen === 0) {
+    sensorMessage.textContent = 'Keine Sensordaten empfangen. Prüfe HTTPS, Geräteunterstützung und Browser-Berechtigungen.';
+  } else {
+    sensorMessage.textContent = `Gestoppt. Empfangene Ereignisse: Bewegung ${motionEventsSeen}, Ausrichtung ${orientationEventsSeen}.`;
+  }
+}
+
+async function startSensors(): Promise<void> {
+  if (sensorsActive) return;
+  if (!('DeviceMotionEvent' in window) && !('DeviceOrientationEvent' in window)) {
+    sensorMessage.textContent = 'Dieser Browser stellt keine Gerätebewegungs- oder Ausrichtungssensoren bereit.';
+    sensorStatus.textContent = 'Nicht unterstützt';
+    return;
+  }
+
+  try {
+    const motionPermission = (DeviceMotionEvent as typeof DeviceMotionEvent & { requestPermission?: () => Promise<string> }).requestPermission;
+    if (typeof motionPermission === 'function') {
+      const permission = await motionPermission.call(DeviceMotionEvent);
+      if (permission !== 'granted') throw new Error('Zugriff auf Bewegungssensoren wurde nicht erlaubt.');
+    }
+    const orientationPermission = (DeviceOrientationEvent as typeof DeviceOrientationEvent & { requestPermission?: () => Promise<string> }).requestPermission;
+    if (typeof orientationPermission === 'function') {
+      const permission = await orientationPermission.call(DeviceOrientationEvent);
+      if (permission !== 'granted') throw new Error('Zugriff auf den Orientierungssensor wurde nicht erlaubt.');
+    }
+    motionEventsSeen = 0;
+    orientationEventsSeen = 0;
+    window.addEventListener('devicemotion', onMotion);
+    window.addEventListener('deviceorientation', onOrientation);
+    sensorsActive = true;
+    sensorStartBtn.disabled = true;
+    sensorStopBtn.disabled = false;
+    sensorStatus.textContent = 'Warte auf Daten …';
+    sensorMessage.textContent = 'Freigabe erteilt. Bewege oder neige das Gerät, um Daten zu sehen.';
+  } catch (error) {
+    sensorStatus.textContent = 'Freigabe fehlt';
+    sensorMessage.textContent = error instanceof Error ? error.message : 'Sensorzugriff konnte nicht gestartet werden.';
+  }
+}
+
+sensorStartBtn.addEventListener('click', () => void startSensors());
+sensorStopBtn.addEventListener('click', stopSensors);
+window.addEventListener('pagehide', () => {
+  window.removeEventListener('devicemotion', onMotion);
+  window.removeEventListener('deviceorientation', onOrientation);
+});
+
 startBtn.addEventListener('click', start);
 stopBtn.addEventListener('click', stop);
 messageInput.addEventListener('input', () => {
@@ -119,4 +210,4 @@ sizeOutput.value = `${sizeInput.value} px`;
 speedOutput.value = `${speedInput.value} px/s`;
 updateStatus(false);
 
-// Sensor/POV research will be added after the text-scroller is stable.
+// Sensor diagnostics are a first step toward the later POV mode; no POV rendering yet.

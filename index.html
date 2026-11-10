@@ -58,6 +58,24 @@
           </div>
         </section>
 
+        <section class="controls sensor-panel" aria-label="Sensor-Diagnose">
+          <div class="setting-heading"><span>Bewegungssensoren</span><span id="sensorStatus" class="muted">Nicht aktiv</span></div>
+          <p class="sensor-description">Lies Beschleunigung und Geräteausrichtung aus, um die Sensorbasis für den POV-Modus zu prüfen. Funktioniert nur auf Geräten und Browsern mit Sensorfreigabe.</p>
+          <div class="button-row">
+            <button id="sensorStartBtn" class="primary-button" type="button">Sensoren starten</button>
+            <button id="sensorStopBtn" class="secondary-button" type="button" disabled>Sensoren stoppen</button>
+          </div>
+          <dl class="sensor-values">
+            <div><dt>Beschleunigung X</dt><dd id="accelX">—</dd></div>
+            <div><dt>Beschleunigung Y</dt><dd id="accelY">—</dd></div>
+            <div><dt>Beschleunigung Z</dt><dd id="accelZ">—</dd></div>
+            <div><dt>Rotation α</dt><dd id="orientAlpha">—</dd></div>
+            <div><dt>Rotation β</dt><dd id="orientBeta">—</dd></div>
+            <div><dt>Rotation γ</dt><dd id="orientGamma">—</dd></div>
+          </dl>
+          <p id="sensorMessage" class="sensor-message" role="status" aria-live="polite">Sensoren sind noch nicht gestartet.</p>
+        </section>
+
         <p class="footnote">Der Prototyp läuft lokal im Gerät. Keine Anmeldung, kein Backend.</p>
       </main>
     </div>
