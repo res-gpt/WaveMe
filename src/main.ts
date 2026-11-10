@@ -67,10 +67,16 @@ function frame(now: number): void {
   const elapsed = Math.min((now - previousFrame) / 1000, 0.05);
   previousFrame = now;
 
-  offset += Number(speedInput.value) * elapsed;
-  const firstTextWidth = marquee.scrollWidth / 2;
-  if (firstTextWidth > 0 && offset >= firstTextWidth) offset -= firstTextWidth;
-  marquee.style.transform = `translateX(calc(${-offset}px + var(--pov-shift, 0px)))`;
+  if (document.body.classList.contains('pov-mode')) {
+    // Immersive POV mode is positioned by live sensor tilt, not marquee scrolling.
+    updatePovPreview();
+    marquee.style.transform = 'translateX(var(--pov-shift, 0px))';
+  } else {
+    offset += Number(speedInput.value) * elapsed;
+    const firstTextWidth = marquee.scrollWidth / 2;
+    if (firstTextWidth > 0 && offset >= firstTextWidth) offset -= firstTextWidth;
+    marquee.style.transform = `translateX(calc(${-offset}px + var(--pov-shift, 0px)))`;
+  }
   animationId = requestAnimationFrame(frame);
 }
 
@@ -113,7 +119,7 @@ function updatePovPreview(): void {
   const outsideDeadZone = Math.abs(relativeGamma) <= POV_DEAD_ZONE_DEGREES
     ? 0
     : Math.sign(relativeGamma) * (Math.abs(relativeGamma) - POV_DEAD_ZONE_DEGREES);
-  const targetShift = povPreviewToggle.checked && gamma !== null
+  const targetShift = sensorsActive && povPreviewToggle.checked && gamma !== null
     ? Math.max(-70, Math.min(70, -outsideDeadZone * sensitivity))
     : 0;
   displayedPovShift += POV_SHIFT_SMOOTHING * (targetShift - displayedPovShift);
@@ -172,6 +178,7 @@ function stopSensors(): void {
   sensorStatus.textContent = 'Nicht aktiv';
   displayedPovShift = 0;
   marquee.style.setProperty('--pov-shift', '0px');
+  updatePovPreview();
   if (motionEventsSeen === 0 && orientationEventsSeen === 0) {
     sensorMessage.textContent = 'Keine Sensordaten empfangen. Prüfe HTTPS, Geräteunterstützung und Browser-Berechtigungen.';
   } else {
