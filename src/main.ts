@@ -244,7 +244,6 @@ async function startSensors(): Promise<void> {
     orientationEventsSeen = 0;
     smoothedAcceleration = { x: null, y: null, z: null };
     smoothedOrientation = { alpha: null, beta: null, gamma: null };
-    lastGammaForDirection = null;
     gammaDirection = 0;
     lastDirectionChangeAt = null;
     povHalfSwingMs = null;
