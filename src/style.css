@@ -126,3 +126,7 @@ body.pov-mode .marquee {
   line-height: 1;
   padding-left: 0;
 }
+
+/* Show the complete acceleration vector on one full-width row. */
+.sensor-values .acceleration-vector { grid-column: 1 / -1; }
+.sensor-values .acceleration-vector dd { font-size: 14px; }
