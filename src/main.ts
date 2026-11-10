@@ -153,7 +153,20 @@ function frame(now: number): void {
         sensorMessage.textContent = 'Rechter Endpunkt erreicht. Warte auf den nächsten X-Richtungswechsel.';
       }
     }
-    marquee.style.transform = `translateX(${-povScrollOffset}px)`;
+    // Apply the same tilt response as the preview, expanded to the full
+    // available text travel so the movement remains clearly visible fullscreen.
+    const gamma = smoothedOrientation.gamma;
+    const relativeGamma = gamma !== null ? gamma - (neutralGamma ?? 0) : 0;
+    const outsideDeadZone = Math.abs(relativeGamma) <= POV_DEAD_ZONE_DEGREES
+      ? 0
+      : Math.sign(relativeGamma) * (Math.abs(relativeGamma) - POV_DEAD_ZONE_DEGREES);
+    const previewEquivalentShift = sensorsActive && gamma !== null && povPreviewToggle.checked
+      ? Math.max(-70, Math.min(70, -outsideDeadZone * Number(povSensitivityInput.value)))
+      : 0;
+    const fullscreenTiltShift = travelDistance > 0
+      ? (previewEquivalentShift / 70) * travelDistance
+      : 0;
+    marquee.style.transform = `translateX(${-povScrollOffset + fullscreenTiltShift}px)`;
   } else {
     offset += Number(speedInput.value) * elapsed;
     const firstTextWidth = marquee.scrollWidth / 2;
