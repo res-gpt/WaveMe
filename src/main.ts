@@ -93,7 +93,7 @@ let color = '#49f5d0';
 let povScrollOffset = 0;
 let gravityCorrectedMagnitude: number | null = null;
 let povScrollDirection = 1;
-let lastGammaDirectionReference: number | null = null;
+let lastGravityCorrectedSign: -1 | 1 | null = null;
 let povWaitingForDirectionChange = false;
 // Physical volume keys mark the outer scroll positions in fullscreen mode.
 let povLeftEndpoint: number | null = null;
@@ -109,6 +109,29 @@ function updateMessage(): void {
   marquee.textContent = `${text}　　 ${text}　　 `;
   offset = 0;
   marquee.style.transform = 'translateX(var(--pov-shift, 0px))';
+  if (document.body.classList.contains('pov-mode')) fitFullscreenText();
+}
+
+/** Fit the whole message into the fullscreen width, while respecting screen height. */
+function fitFullscreenText(): void {
+  if (!document.body.classList.contains('pov-mode')) return;
+  const availableWidth = Math.max(1, display.clientWidth * 0.96);
+  const maxHeightSize = Math.max(12, display.clientHeight * 0.88);
+  let low = 8;
+  let high = maxHeightSize;
+  let best = low;
+  for (let i = 0; i < 14; i += 1) {
+    const candidate = (low + high) / 2;
+    marquee.style.fontSize = `${candidate}px`;
+    const oneCopyWidth = marquee.scrollWidth / 2;
+    if (oneCopyWidth <= availableWidth) {
+      best = candidate;
+      low = candidate;
+    } else {
+      high = candidate;
+    }
+  }
+  marquee.style.fontSize = `${best}px`;
 }
 
 function updateStatus(isRunning: boolean): void {
@@ -125,50 +148,30 @@ function frame(now: number): void {
   const elapsed = Math.min((now - previousFrame) / 1000, 0.05);
   previousFrame = now;
 
-  if (document.body.classList.contains('pov-mode')) {
-    // Volume + marks the leftmost position; volume - marks the rightmost.
-    // One measured sway interval is the available travel time between endpoints.
-    const firstTextWidth = marquee.scrollWidth / 2;
-    const defaultTravelDistance = firstTextWidth + display.clientWidth;
-    const hasEndpoints = povLeftEndpoint !== null && povRightEndpoint !== null;
-    const lowerBound = hasEndpoints ? Math.min(povLeftEndpoint!, povRightEndpoint!) : 0;
-    const upperBound = hasEndpoints ? Math.max(povLeftEndpoint!, povRightEndpoint!) : defaultTravelDistance;
-    const travelDistance = Math.max(0, upperBound - lowerBound);
-    // Fullscreen speed is user-adjustable from 100 to 500 px/s.
-    const pixelsPerSecond = Math.max(100, Math.min(500, Number(speedInput.value)));
-
-    // Reverse direction whenever gamma changes by at least 5° from the
-    // previous reversal reference, in either direction.
-    const gamma = smoothedOrientation.gamma;
-    if (sensorsActive && gamma !== null) {
-      if (lastGammaDirectionReference === null) {
-        lastGammaDirectionReference = gamma;
-      } else if (Math.abs(gamma - lastGammaDirectionReference) >= 5) {
-        povScrollDirection *= -1;
-        povWaitingForDirectionChange = false;
-        lastGammaDirectionReference = gamma;
-      }
+  const isFullscreen = document.body.classList.contains('pov-mode');
+  if (isFullscreen && sensorsActive && gravityCorrectedMagnitude !== null && gravityCorrectedMagnitude !== 0) {
+    const currentSign: -1 | 1 = gravityCorrectedMagnitude > 0 ? 1 : -1;
+    if (lastGravityCorrectedSign === null) {
+      lastGravityCorrectedSign = currentSign;
+    } else if (currentSign !== lastGravityCorrectedSign) {
+      povScrollDirection *= -1;
+      lastGravityCorrectedSign = currentSign;
     }
-
-    if (!povWaitingForDirectionChange) {
-      povScrollOffset += povScrollDirection * pixelsPerSecond * elapsed;
-      if (povScrollOffset >= upperBound) {
-        povScrollOffset = upperBound;
-        povWaitingForDirectionChange = true;
-        sensorMessage.textContent = 'Linker Endpunkt erreicht. Bewege das Gerät um 5° (Gamma) weiter, um weiterzuscrollen.';
-      } else if (povScrollOffset <= lowerBound) {
-        povScrollOffset = lowerBound;
-        povWaitingForDirectionChange = true;
-        sensorMessage.textContent = 'Rechter Endpunkt erreicht. Bewege das Gerät um 5° (Gamma) weiter, um weiterzuscrollen.';
-      }
-    }
-    marquee.style.transform = `translateX(${-povScrollOffset}px)`;
-  } else {
-    offset += Number(speedInput.value) * elapsed;
-    const firstTextWidth = marquee.scrollWidth / 2;
-    if (firstTextWidth > 0 && offset >= firstTextWidth) offset -= firstTextWidth;
-    marquee.style.transform = `translateX(calc(${-offset}px + var(--pov-shift, 0px)))`;
   }
+
+  const firstTextWidth = marquee.scrollWidth / 2;
+  if (firstTextWidth > 0) {
+    const baseSpeed = Math.max(100, Math.min(500, Number(speedInput.value)));
+    const accelerationFactor = isFullscreen
+      ? Math.max(0.25, Math.min(3, 1 + (gravityCorrectedMagnitude ?? 0) / 9.81))
+      : 1;
+    const direction = isFullscreen ? povScrollDirection : 1;
+    offset += direction * baseSpeed * accelerationFactor * elapsed;
+    if (isFullscreen) povScrollOffset = offset;
+    offset = ((offset % firstTextWidth) + firstTextWidth) % firstTextWidth;
+    if (isFullscreen) povScrollOffset = offset;
+  }
+  marquee.style.transform = `translateX(calc(${-offset}px + var(--pov-shift, 0px)))`;
   animationId = requestAnimationFrame(frame);
 }
 
@@ -231,7 +234,7 @@ function calibratePovNeutralPosition(): void {
   }
   neutralGamma = smoothedOrientation.gamma;
   updatePovPreview();
-  sensorMessage.textContent = `Neutralposition gesetzt (γ ${neutralGamma.toFixed(1)}°). Vorschau und Vollbild-Richtungswechsel nutzen γ.`;
+  sensorMessage.textContent = `Neutralposition gesetzt (γ ${neutralGamma.toFixed(1)}°). Die Vorschau und Vollbildanzeige verwenden dieselbe Neigungsverschiebung.`;
 }
 
 function formatSensorValue(value: number | null | undefined): string {
@@ -313,9 +316,10 @@ async function startSensors(): Promise<void> {
     smoothedAcceleration = { x: null, y: null, z: null };
     smoothedOrientation = { alpha: null, beta: null, gamma: null };
     gravityCorrectedMagnitude = null;
+    offset = 0;
     povScrollOffset = 0;
     povScrollDirection = 1;
-    lastGammaDirectionReference = smoothedOrientation.gamma;
+    lastGravityCorrectedSign = gravityCorrectedMagnitude === null || gravityCorrectedMagnitude === 0 ? null : gravityCorrectedMagnitude > 0 ? 1 : -1;
     povWaitingForDirectionChange = false;
     window.addEventListener('devicemotion', onMotion);
     window.addEventListener('deviceorientation', onOrientation);
@@ -323,7 +327,7 @@ async function startSensors(): Promise<void> {
     sensorStartBtn.disabled = true;
     sensorStopBtn.disabled = false;
     sensorStatus.textContent = 'Warte auf Daten …';
-    sensorMessage.textContent = 'Freigabe erteilt. Gamma steuert den Richtungswechsel im Vollbildmodus.';
+    sensorMessage.textContent = 'Sensoren aktiv. Vorschau reagiert auf Neigung; im Vollbild skaliert gravityCorrectedMagnitude die Geschwindigkeit und sein Vorzeichenwechsel kehrt die Richtung um.';
   } catch (error) {
     sensorStatus.textContent = 'Freigabe fehlt';
     sensorMessage.textContent = error instanceof Error ? error.message : 'Sensorzugriff konnte nicht gestartet werden.';
@@ -354,6 +358,7 @@ speedInput.addEventListener('input', () => {
 });
 sizeInput.addEventListener('input', () => {
   marquee.style.fontSize = `${sizeInput.value}px`;
+  if (document.body.classList.contains('pov-mode')) fitFullscreenText();
   sizeOutput.value = `${sizeInput.value} px`;
 });
 
@@ -381,13 +386,15 @@ async function enterPovFullscreen(): Promise<void> {
     if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
     document.body.classList.add('pov-mode');
     povScrollOffset = 0;
+    offset = 0;
     povScrollDirection = 1;
-    lastGammaDirectionReference = smoothedOrientation.gamma;
+    lastGravityCorrectedSign = gravityCorrectedMagnitude === null || gravityCorrectedMagnitude === 0 ? null : gravityCorrectedMagnitude > 0 ? 1 : -1;
     povWaitingForDirectionChange = false;
     povLeftEndpoint = null;
     povRightEndpoint = null;
-    if (!sensorsActive) sensorMessage.textContent = 'Stelle die Scrollgeschwindigkeit mit dem Regler ein. Alle 5° Gamma-Änderung wechselt die Richtung.';
-    else sensorMessage.textContent = 'Scrollgeschwindigkeit mit dem Regler einstellbar (100–500 px/s); Richtungswechsel alle 5° Gamma-Änderung.';
+    fitFullscreenText();
+    if (!sensorsActive) sensorMessage.textContent = 'Vollbild nutzt dieselbe Laufschrift wie die Vorschau. Mit aktiven Bewegungssensoren skaliert die Beschleunigung die Geschwindigkeit und ein Vorzeichenwechsel kehrt die Richtung um.';
+    else sensorMessage.textContent = 'Vollbild: gleiche Laufschrift wie Vorschau; Geschwindigkeit 100–500 px/s, dynamisch durch gravityCorrectedMagnitude skaliert. Richtungswechsel nur bei Vorzeichenwechsel.';
     if (!running) start();
   } catch {
     statusText.textContent = 'Vollbild nicht verfügbar';
@@ -396,6 +403,7 @@ async function enterPovFullscreen(): Promise<void> {
 
 async function exitPovFullscreen(): Promise<void> {
   document.body.classList.remove('pov-mode');
+  marquee.style.fontSize = `${sizeInput.value}px`;
   if (document.fullscreenElement) {
     try {
       await document.exitFullscreen();
@@ -415,7 +423,15 @@ display.addEventListener('click', () => {
 });
 
 document.addEventListener('fullscreenchange', () => {
-  if (!document.fullscreenElement) document.body.classList.remove('pov-mode');
+  if (!document.fullscreenElement) {
+    document.body.classList.remove('pov-mode');
+    marquee.style.fontSize = `${sizeInput.value}px`;
+  } else if (document.body.classList.contains('pov-mode')) {
+    requestAnimationFrame(fitFullscreenText);
+  }
+});
+window.addEventListener('resize', () => {
+  if (document.body.classList.contains('pov-mode')) fitFullscreenText();
 });
 
 // Volume-key events work in environments that forward them to the WebView.
