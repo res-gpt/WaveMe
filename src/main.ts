@@ -47,7 +47,7 @@ function updateMessage(): void {
   // Spacing makes the end-to-start loop easier to read.
   marquee.textContent = `${text}　　 ${text}　　 `;
   offset = 0;
-  marquee.style.transform = `translateX(0px)`;
+  marquee.style.transform = 'translateX(var(--pov-shift, 0px))';
 }
 
 function updateStatus(isRunning: boolean): void {
@@ -67,7 +67,7 @@ function frame(now: number): void {
   offset += Number(speedInput.value) * elapsed;
   const firstTextWidth = marquee.scrollWidth / 2;
   if (firstTextWidth > 0 && offset >= firstTextWidth) offset -= firstTextWidth;
-  marquee.style.transform = `translateX(${-offset}px)`;
+  marquee.style.transform = `translateX(calc(${-offset}px + var(--pov-shift, 0px)))`;
   animationId = requestAnimationFrame(frame);
 }
 
