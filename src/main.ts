@@ -15,6 +15,9 @@ const speedInput = byId<HTMLInputElement>('speedInput');
 const speedOutput = byId<HTMLOutputElement>('speedOutput');
 const sizeInput = byId<HTMLInputElement>('sizeInput');
 const sizeOutput = byId<HTMLOutputElement>('sizeOutput');
+const blinkToggle = byId<HTMLInputElement>('blinkToggle');
+const blinkSpeedInput = byId<HTMLInputElement>('blinkSpeedInput');
+const blinkSpeedOutput = byId<HTMLOutputElement>('blinkSpeedOutput');
 const statusText = byId<HTMLSpanElement>('statusText');
 const statusDot = byId<HTMLSpanElement>('statusDot');
 const fullscreenBtn = byId<HTMLButtonElement>('fullscreenBtn');
@@ -249,6 +252,16 @@ sizeInput.addEventListener('input', () => {
   sizeOutput.value = `${sizeInput.value} px`;
 });
 
+function updateBlinkSettings(): void {
+  document.body.classList.toggle('blink-enabled', blinkToggle.checked);
+  const duration = Number(blinkSpeedInput.value);
+  document.documentElement.style.setProperty('--blink-duration', `${duration}s`);
+  blinkSpeedOutput.value = `${duration.toLocaleString('de-DE', { maximumFractionDigits: 1 })} s`;
+}
+
+blinkToggle.addEventListener('change', updateBlinkSettings);
+blinkSpeedInput.addEventListener('input', updateBlinkSettings);
+
 document.querySelectorAll<HTMLButtonElement>('.swatch').forEach((button) => {
   button.addEventListener('click', () => {
     color = button.dataset.color || '#49f5d0';
@@ -306,6 +319,7 @@ marquee.style.color = color;
 sizeOutput.value = `${sizeInput.value} px`;
 speedOutput.value = `${speedInput.value} px/s`;
 updatePovSensitivityLabel();
+updateBlinkSettings();
 updateStatus(false);
 
 // Sensor diagnostics are a first step toward the later POV mode; no POV rendering yet.
