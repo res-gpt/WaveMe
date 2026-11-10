@@ -91,11 +91,9 @@ let previousFrame = 0;
 let animationId = 0;
 let color = '#49f5d0';
 let povScrollOffset = 0;
-let povHalfSwingMs: number | null = null;
-let accelerationXDirection = 0;
-let previousAccelerationX: number | null = null;
-let lastAccelerationXReversalAt: number | null = null;
-let povScrollCalibrated = false;
+let peakAbsoluteAccelerationX: number | null = null;
+let peakDropTriggered = false;
+let gravityCorrectedMagnitude: number | null = null;
 let povScrollDirection = 1;
 let povWaitingForDirectionChange = false;
 // Physical volume keys mark the outer scroll positions in fullscreen mode.
@@ -137,9 +135,11 @@ function frame(now: number): void {
     const lowerBound = hasEndpoints ? Math.min(povLeftEndpoint!, povRightEndpoint!) : 0;
     const upperBound = hasEndpoints ? Math.max(povLeftEndpoint!, povRightEndpoint!) : defaultTravelDistance;
     const travelDistance = Math.max(0, upperBound - lowerBound);
-    const pixelsPerSecond = povScrollCalibrated && povHalfSwingMs && travelDistance > 0
-      ? travelDistance / (povHalfSwingMs / 1000)
-      : Number(speedInput.value);
+    // The gravity-corrected acceleration controls speed directly, scaled to
+    // visible display movement. Negative/noisy values are clamped to zero.
+    const pixelsPerSecond = gravityCorrectedMagnitude === null
+      ? Number(speedInput.value)
+      : Math.max(0, gravityCorrectedMagnitude) * 60;
 
     if (!povWaitingForDirectionChange) {
       povScrollOffset += povScrollDirection * pixelsPerSecond * elapsed;
@@ -235,46 +235,38 @@ function onMotion(event: DeviceMotionEvent): void {
   smoothedAcceleration.y = smoothValue(smoothedAcceleration.y, acceleration?.y ?? null);
   smoothedAcceleration.z = smoothValue(smoothedAcceleration.z, acceleration?.z ?? null);
 
-  // Fullscreen scroll calibration uses only changes in the X acceleration.
+  // Detect a reversal when |X| has fallen by at least 1 m/s² from its peak.
   const accelerationX = smoothedAcceleration.x;
-  if (sensorsActive && accelerationX !== null && previousAccelerationX !== null) {
-    const deltaX = accelerationX - previousAccelerationX;
-    const nextDirection = Math.abs(deltaX) >= 0.08 ? Math.sign(deltaX) : 0;
-    if (nextDirection !== 0 && accelerationXDirection !== 0 && nextDirection !== accelerationXDirection) {
-      const now = performance.now();
-      if (lastAccelerationXReversalAt !== null) {
-        const halfSwing = now - lastAccelerationXReversalAt;
-        // Recalibrate on every valid reversal, ignoring noise and long pauses.
-        if (halfSwing >= 250 && halfSwing <= 8000) {
-          povHalfSwingMs = halfSwing;
-          povScrollCalibrated = true;
-          if (!(povWaitingForDirectionChange && document.body.classList.contains('pov-mode'))) {
-            sensorMessage.textContent = `X-Beschleunigung kalibriert: Der gesamte Text läuft in ${(halfSwing / 1000).toLocaleString('de-DE', { maximumFractionDigits: 2 })} s über das Display.`;
-          }
-        }
-      }
-      lastAccelerationXReversalAt = now;
+  if (sensorsActive && accelerationX !== null) {
+    const absoluteX = Math.abs(accelerationX);
+    if (peakAbsoluteAccelerationX === null) {
+      peakAbsoluteAccelerationX = absoluteX;
+    } else if (absoluteX > peakAbsoluteAccelerationX) {
+      // A new peak arms the next drop-based reversal.
+      peakAbsoluteAccelerationX = absoluteX;
+      peakDropTriggered = false;
+    } else if (!peakDropTriggered && peakAbsoluteAccelerationX - absoluteX >= 1) {
+      peakDropTriggered = true;
+      peakAbsoluteAccelerationX = absoluteX;
       if (document.body.classList.contains('pov-mode')) {
-        // Reverse where the text currently is, even if it has not reached an endpoint.
         povScrollDirection *= -1;
         povWaitingForDirectionChange = false;
-        sensorMessage.textContent = 'X-Richtungswechsel erkannt. Der Text wechselt an seiner aktuellen Position die Richtung.';
+        sensorMessage.textContent = 'X-Betrag ist um mindestens 1 m/s² vom Höchstwert gefallen. Scrollrichtung gewechselt.';
       }
     }
-    if (nextDirection !== 0) accelerationXDirection = nextDirection;
   }
-  previousAccelerationX = accelerationX;
   sensorValues.vector.textContent = `(${formatSensorValue(smoothedAcceleration.x)}, ${formatSensorValue(smoothedAcceleration.y)}, ${formatSensorValue(smoothedAcceleration.z)}) m/s²`;
   const { x, y, z } = smoothedAcceleration;
   if (x !== null && y !== null && z !== null) {
     const magnitude = Math.sqrt(x * x + y * y + z * z);
-    const gravityCorrectedMagnitude = magnitude - 9.81;
+    gravityCorrectedMagnitude = magnitude - 9.81;
     sensorValues.magnitude.textContent = `|a| = ${magnitude.toFixed(2)} m/s² · |a| − 9,81 = ${gravityCorrectedMagnitude.toFixed(2)} m/s²`;
   } else {
+    gravityCorrectedMagnitude = null;
     sensorValues.magnitude.textContent = 'nicht verfügbar';
   }
   sensorStatus.textContent = 'Aktiv';
-  if (!povScrollCalibrated && !povWaitingForDirectionChange) {
+  if (gravityCorrectedMagnitude !== null && !povWaitingForDirectionChange && !document.body.classList.contains('pov-mode')) {
     sensorMessage.textContent = 'Bewegungsdaten werden empfangen.';
   }
 }
@@ -330,11 +322,9 @@ async function startSensors(): Promise<void> {
     orientationEventsSeen = 0;
     smoothedAcceleration = { x: null, y: null, z: null };
     smoothedOrientation = { alpha: null, beta: null, gamma: null };
-    accelerationXDirection = 0;
-    previousAccelerationX = null;
-    lastAccelerationXReversalAt = null;
-    povHalfSwingMs = null;
-    povScrollCalibrated = false;
+    peakAbsoluteAccelerationX = null;
+    peakDropTriggered = false;
+    gravityCorrectedMagnitude = null;
     povScrollOffset = 0;
     povScrollDirection = 1;
     povWaitingForDirectionChange = false;
@@ -406,8 +396,8 @@ async function enterPovFullscreen(): Promise<void> {
     povWaitingForDirectionChange = false;
     povLeftEndpoint = null;
     povRightEndpoint = null;
-    if (!sensorsActive) sensorMessage.textContent = 'Starte die Sensoren und schwenke das Gerät einmal nach links und rechts, um die Scrollgeschwindigkeit zu kalibrieren.';
-    else sensorMessage.textContent = 'Schwenke das Gerät einmal nach links und rechts, um die Scrollgeschwindigkeit zu kalibrieren.';
+    if (!sensorsActive) sensorMessage.textContent = 'Starte die Sensoren. Die Scrollgeschwindigkeit folgt dann dem gravitationsbereinigten Beschleunigungswert.';
+    else sensorMessage.textContent = 'Die Scrollgeschwindigkeit folgt dem gravitationsbereinigten Beschleunigungswert.';
     if (!running) start();
   } catch {
     statusText.textContent = 'Vollbild nicht verfügbar';
