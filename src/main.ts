@@ -22,6 +22,7 @@ const sensorStartBtn = byId<HTMLButtonElement>('sensorStartBtn');
 const sensorStopBtn = byId<HTMLButtonElement>('sensorStopBtn');
 const sensorStatus = byId<HTMLSpanElement>('sensorStatus');
 const sensorMessage = byId<HTMLParagraphElement>('sensorMessage');
+const povPreviewToggle = byId<HTMLInputElement>('povPreviewToggle');
 const sensorValues = {
   x: byId<HTMLElement>('accelX'),
   y: byId<HTMLElement>('accelY'),
@@ -88,6 +89,20 @@ function stop(): void {
 let sensorsActive = false;
 let motionEventsSeen = 0;
 let orientationEventsSeen = 0;
+let smoothedAcceleration = { x: null as number | null, y: null as number | null, z: null as number | null };
+let smoothedOrientation = { alpha: null as number | null, beta: null as number | null, gamma: null as number | null };
+const SENSOR_SMOOTHING = 0.22;
+
+function smoothValue(previous: number | null, next: number | null): number | null {
+  if (typeof next !== 'number' || !Number.isFinite(next)) return previous;
+  return previous === null ? next : previous + SENSOR_SMOOTHING * (next - previous);
+}
+
+function updatePovPreview(): void {
+  const gamma = smoothedOrientation.gamma;
+  const shift = povPreviewToggle.checked && gamma !== null ? Math.max(-70, Math.min(70, gamma * 2.2)) : 0;
+  marquee.style.setProperty('--pov-shift', `${shift.toFixed(1)}px`);
+}
 
 function formatSensorValue(value: number | null | undefined): string {
   return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(2) : 'nicht verfügbar';
@@ -95,18 +110,26 @@ function formatSensorValue(value: number | null | undefined): string {
 
 function onMotion(event: DeviceMotionEvent): void {
   motionEventsSeen += 1;
-  sensorValues.x.textContent = formatSensorValue(event.accelerationIncludingGravity?.x);
-  sensorValues.y.textContent = formatSensorValue(event.accelerationIncludingGravity?.y);
-  sensorValues.z.textContent = formatSensorValue(event.accelerationIncludingGravity?.z);
+  const acceleration = event.accelerationIncludingGravity;
+  smoothedAcceleration.x = smoothValue(smoothedAcceleration.x, acceleration?.x ?? null);
+  smoothedAcceleration.y = smoothValue(smoothedAcceleration.y, acceleration?.y ?? null);
+  smoothedAcceleration.z = smoothValue(smoothedAcceleration.z, acceleration?.z ?? null);
+  sensorValues.x.textContent = formatSensorValue(smoothedAcceleration.x);
+  sensorValues.y.textContent = formatSensorValue(smoothedAcceleration.y);
+  sensorValues.z.textContent = formatSensorValue(smoothedAcceleration.z);
   sensorStatus.textContent = 'Aktiv';
   sensorMessage.textContent = 'Bewegungsdaten werden empfangen.';
 }
 
 function onOrientation(event: DeviceOrientationEvent): void {
   orientationEventsSeen += 1;
-  sensorValues.alpha.textContent = formatSensorValue(event.alpha);
-  sensorValues.beta.textContent = formatSensorValue(event.beta);
-  sensorValues.gamma.textContent = formatSensorValue(event.gamma);
+  smoothedOrientation.alpha = smoothValue(smoothedOrientation.alpha, event.alpha);
+  smoothedOrientation.beta = smoothValue(smoothedOrientation.beta, event.beta);
+  smoothedOrientation.gamma = smoothValue(smoothedOrientation.gamma, event.gamma);
+  sensorValues.alpha.textContent = formatSensorValue(smoothedOrientation.alpha);
+  sensorValues.beta.textContent = formatSensorValue(smoothedOrientation.beta);
+  sensorValues.gamma.textContent = formatSensorValue(smoothedOrientation.gamma);
+  updatePovPreview();
 }
 
 function stopSensors(): void {
@@ -116,6 +139,7 @@ function stopSensors(): void {
   sensorStartBtn.disabled = false;
   sensorStopBtn.disabled = true;
   sensorStatus.textContent = 'Nicht aktiv';
+  marquee.style.setProperty('--pov-shift', '0px');
   if (motionEventsSeen === 0 && orientationEventsSeen === 0) {
     sensorMessage.textContent = 'Keine Sensordaten empfangen. Prüfe HTTPS, Geräteunterstützung und Browser-Berechtigungen.';
   } else {
@@ -144,6 +168,8 @@ async function startSensors(): Promise<void> {
     }
     motionEventsSeen = 0;
     orientationEventsSeen = 0;
+    smoothedAcceleration = { x: null, y: null, z: null };
+    smoothedOrientation = { alpha: null, beta: null, gamma: null };
     window.addEventListener('devicemotion', onMotion);
     window.addEventListener('deviceorientation', onOrientation);
     sensorsActive = true;
@@ -159,6 +185,8 @@ async function startSensors(): Promise<void> {
 
 sensorStartBtn.addEventListener('click', () => void startSensors());
 sensorStopBtn.addEventListener('click', stopSensors);
+povPreviewToggle.addEventListener('change', updatePovPreview);
+
 window.addEventListener('pagehide', () => {
   window.removeEventListener('devicemotion', onMotion);
   window.removeEventListener('deviceorientation', onOrientation);
