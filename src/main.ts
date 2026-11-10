@@ -93,7 +93,7 @@ let color = '#49f5d0';
 let povScrollOffset = 0;
 let gravityCorrectedMagnitude: number | null = null;
 let povScrollDirection = 1;
-let previousAlphaDirection: number | null = null;
+let lastGammaDirectionReference: number | null = null;
 let povWaitingForDirectionChange = false;
 // Physical volume keys mark the outer scroll positions in fullscreen mode.
 let povLeftEndpoint: number | null = null;
@@ -134,22 +134,19 @@ function frame(now: number): void {
     const lowerBound = hasEndpoints ? Math.min(povLeftEndpoint!, povRightEndpoint!) : 0;
     const upperBound = hasEndpoints ? Math.max(povLeftEndpoint!, povRightEndpoint!) : defaultTravelDistance;
     const travelDistance = Math.max(0, upperBound - lowerBound);
-    // The gravity-corrected acceleration controls speed directly, scaled to
-    // visible display movement. Negative/noisy values are clamped to zero.
-    const pixelsPerSecond = gravityCorrectedMagnitude === null
-      ? Number(speedInput.value)
-      : Math.max(0, gravityCorrectedMagnitude) * 60;
+    // Fullscreen speed is user-adjustable from 100 to 500 px/s.
+    const pixelsPerSecond = Math.max(100, Math.min(500, Number(speedInput.value)));
 
-    // Alpha controls direction only. Scroll speed above depends only on
-    // the acceleration-vector magnitude minus gravity (9.81 m/s²).
-    const alpha = smoothedOrientation.alpha;
-    const relativeAlpha = alpha !== null ? alpha - (neutralAlpha ?? 0) : 0;
-    if (sensorsActive && alpha !== null && Math.abs(relativeAlpha) > POV_DEAD_ZONE_DEGREES) {
-      const alphaDirection = relativeAlpha > 0 ? -1 : 1;
-      if (alphaDirection !== previousAlphaDirection) {
-        povScrollDirection = alphaDirection;
+    // Reverse direction whenever gamma changes by at least 5° from the
+    // previous reversal reference, in either direction.
+    const gamma = smoothedOrientation.gamma;
+    if (sensorsActive && gamma !== null) {
+      if (lastGammaDirectionReference === null) {
+        lastGammaDirectionReference = gamma;
+      } else if (Math.abs(gamma - lastGammaDirectionReference) >= 5) {
+        povScrollDirection *= -1;
         povWaitingForDirectionChange = false;
-        previousAlphaDirection = alphaDirection;
+        lastGammaDirectionReference = gamma;
       }
     }
 
@@ -158,11 +155,11 @@ function frame(now: number): void {
       if (povScrollOffset >= upperBound) {
         povScrollOffset = upperBound;
         povWaitingForDirectionChange = true;
-        sensorMessage.textContent = 'Linker Endpunkt erreicht. Drehe das Gerät in die Gegenrichtung (Alpha), um weiterzuscrollen.';
+        sensorMessage.textContent = 'Linker Endpunkt erreicht. Bewege das Gerät um 5° (Gamma) weiter, um weiterzuscrollen.';
       } else if (povScrollOffset <= lowerBound) {
         povScrollOffset = lowerBound;
         povWaitingForDirectionChange = true;
-        sensorMessage.textContent = 'Rechter Endpunkt erreicht. Drehe das Gerät in die Gegenrichtung (Alpha), um weiterzuscrollen.';
+        sensorMessage.textContent = 'Rechter Endpunkt erreicht. Bewege das Gerät um 5° (Gamma) weiter, um weiterzuscrollen.';
       }
     }
     marquee.style.transform = `translateX(${-povScrollOffset}px)`;
@@ -233,9 +230,8 @@ function calibratePovNeutralPosition(): void {
     return;
   }
   neutralGamma = smoothedOrientation.gamma;
-  neutralAlpha = smoothedOrientation.alpha;
   updatePovPreview();
-  sensorMessage.textContent = `Neutralposition gesetzt (γ ${neutralGamma.toFixed(1)}°, α ${neutralAlpha?.toFixed(1) ?? 'nicht verfügbar'}°). Vorschau nutzt γ, Vollbildneigung nutzt α.`;
+  sensorMessage.textContent = `Neutralposition gesetzt (γ ${neutralGamma.toFixed(1)}°). Vorschau und Vollbild-Richtungswechsel nutzen γ.`;
 }
 
 function formatSensorValue(value: number | null | undefined): string {
@@ -319,7 +315,7 @@ async function startSensors(): Promise<void> {
     gravityCorrectedMagnitude = null;
     povScrollOffset = 0;
     povScrollDirection = 1;
-    previousAlphaDirection = null;
+    lastGammaDirectionReference = smoothedOrientation.gamma;
     povWaitingForDirectionChange = false;
     window.addEventListener('devicemotion', onMotion);
     window.addEventListener('deviceorientation', onOrientation);
@@ -327,7 +323,7 @@ async function startSensors(): Promise<void> {
     sensorStartBtn.disabled = true;
     sensorStopBtn.disabled = false;
     sensorStatus.textContent = 'Warte auf Daten …';
-    sensorMessage.textContent = 'Freigabe erteilt. Bewege oder neige das Gerät, um Daten zu sehen.';
+    sensorMessage.textContent = 'Freigabe erteilt. Gamma steuert den Richtungswechsel im Vollbildmodus.';
   } catch (error) {
     sensorStatus.textContent = 'Freigabe fehlt';
     sensorMessage.textContent = error instanceof Error ? error.message : 'Sensorzugriff konnte nicht gestartet werden.';
@@ -365,7 +361,7 @@ function updateBlinkSettings(): void {
   document.body.classList.toggle('blink-enabled', blinkToggle.checked);
   const duration = Number(blinkSpeedInput.value);
   document.documentElement.style.setProperty('--blink-duration', `${duration}s`);
-  blinkSpeedOutput.value = `${duration.toLocaleString('de-DE', { maximumFractionDigits: 1 })} s`;
+  blinkSpeedOutput.value = `${duration.toLocaleString('de-DE', { maximumFractionDigits: 2 })} s`;
 }
 
 blinkToggle.addEventListener('change', updateBlinkSettings);
@@ -386,11 +382,12 @@ async function enterPovFullscreen(): Promise<void> {
     document.body.classList.add('pov-mode');
     povScrollOffset = 0;
     povScrollDirection = 1;
+    lastGammaDirectionReference = smoothedOrientation.gamma;
     povWaitingForDirectionChange = false;
     povLeftEndpoint = null;
     povRightEndpoint = null;
-    if (!sensorsActive) sensorMessage.textContent = 'Starte die Sensoren. Die Scrollgeschwindigkeit folgt dann dem gravitationsbereinigten Beschleunigungswert.';
-    else sensorMessage.textContent = 'Die Scrollgeschwindigkeit folgt dem gravitationsbereinigten Beschleunigungswert.';
+    if (!sensorsActive) sensorMessage.textContent = 'Stelle die Scrollgeschwindigkeit mit dem Regler ein. Alle 5° Gamma-Änderung wechselt die Richtung.';
+    else sensorMessage.textContent = 'Scrollgeschwindigkeit mit dem Regler einstellbar (100–500 px/s); Richtungswechsel alle 5° Gamma-Änderung.';
     if (!running) start();
   } catch {
     statusText.textContent = 'Vollbild nicht verfügbar';
