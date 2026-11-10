@@ -112,26 +112,11 @@ function updateMessage(): void {
   if (document.body.classList.contains('pov-mode')) fitFullscreenText();
 }
 
-/** Fit the whole message into the fullscreen width, while respecting screen height. */
+/** Fullscreen text is exactly 20 times the configured preview font size. */
 function fitFullscreenText(): void {
   if (!document.body.classList.contains('pov-mode')) return;
-  const availableWidth = Math.max(1, display.clientWidth * 0.96);
-  const maxHeightSize = Math.max(12, display.clientHeight * 0.88);
-  let low = 8;
-  let high = maxHeightSize;
-  let best = low;
-  for (let i = 0; i < 14; i += 1) {
-    const candidate = (low + high) / 2;
-    marquee.style.fontSize = `${candidate}px`;
-    const oneCopyWidth = marquee.scrollWidth / 2;
-    if (oneCopyWidth <= availableWidth) {
-      best = candidate;
-      low = candidate;
-    } else {
-      high = candidate;
-    }
-  }
-  marquee.style.fontSize = `${best}px`;
+  const previewFontSize = Number(sizeInput.value) || 32;
+  marquee.style.fontSize = `${previewFontSize * 20}px`;
 }
 
 function updateStatus(isRunning: boolean): void {
