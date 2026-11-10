@@ -45,8 +45,9 @@ let animationId = 0;
 let color = '#49f5d0';
 let povScrollOffset = 0;
 let povHalfSwingMs: number | null = null;
-let gammaDirection = 0;
-let lastDirectionChangeAt: number | null = null;
+let accelerationXDirection = 0;
+let previousAccelerationX: number | null = null;
+let lastAccelerationXReversalAt: number | null = null;
 let povScrollCalibrated = false;
 
 function normalizedMessage(): string {
@@ -166,6 +167,28 @@ function onMotion(event: DeviceMotionEvent): void {
   smoothedAcceleration.x = smoothValue(smoothedAcceleration.x, acceleration?.x ?? null);
   smoothedAcceleration.y = smoothValue(smoothedAcceleration.y, acceleration?.y ?? null);
   smoothedAcceleration.z = smoothValue(smoothedAcceleration.z, acceleration?.z ?? null);
+
+  // Fullscreen scroll calibration uses only changes in the X acceleration.
+  const accelerationX = smoothedAcceleration.x;
+  if (sensorsActive && accelerationX !== null && previousAccelerationX !== null) {
+    const deltaX = accelerationX - previousAccelerationX;
+    const nextDirection = Math.abs(deltaX) >= 0.08 ? Math.sign(deltaX) : 0;
+    if (nextDirection !== 0 && accelerationXDirection !== 0 && nextDirection !== accelerationXDirection) {
+      const now = performance.now();
+      if (lastAccelerationXReversalAt !== null) {
+        const halfSwing = now - lastAccelerationXReversalAt;
+        // Recalibrate on every valid reversal, ignoring noise and long pauses.
+        if (halfSwing >= 250 && halfSwing <= 8000) {
+          povHalfSwingMs = halfSwing;
+          povScrollCalibrated = true;
+          sensorMessage.textContent = `X-Beschleunigung kalibriert: Der gesamte Text läuft in ${(halfSwing / 1000).toLocaleString('de-DE', { maximumFractionDigits: 2 })} s über das Display.`;
+        }
+      }
+      lastAccelerationXReversalAt = now;
+    }
+    if (nextDirection !== 0) accelerationXDirection = nextDirection;
+  }
+  previousAccelerationX = accelerationX;
   sensorValues.x.textContent = formatSensorValue(smoothedAcceleration.x);
   sensorValues.y.textContent = formatSensorValue(smoothedAcceleration.y);
   sensorValues.z.textContent = formatSensorValue(smoothedAcceleration.z);
@@ -177,27 +200,7 @@ function onOrientation(event: DeviceOrientationEvent): void {
   orientationEventsSeen += 1;
   smoothedOrientation.alpha = smoothValue(smoothedOrientation.alpha, event.alpha);
   smoothedOrientation.beta = smoothValue(smoothedOrientation.beta, event.beta);
-  const previousGamma = smoothedOrientation.gamma;
   smoothedOrientation.gamma = smoothValue(smoothedOrientation.gamma, event.gamma);
-  const gamma = smoothedOrientation.gamma;
-  if (sensorsActive && gamma !== null && previousGamma !== null) {
-    const delta = gamma - previousGamma;
-    const nextDirection = Math.abs(delta) >= 0.35 ? Math.sign(delta) : 0;
-    if (nextDirection !== 0 && gammaDirection !== 0 && nextDirection !== gammaDirection) {
-      const now = performance.now();
-      if (lastDirectionChangeAt !== null) {
-        const halfSwing = now - lastDirectionChangeAt;
-        // Ignore sensor noise and implausibly slow pauses between deliberate swings.
-        if (halfSwing >= 250 && halfSwing <= 8000) {
-          povHalfSwingMs = halfSwing;
-          povScrollCalibrated = true;
-          sensorMessage.textContent = `Schwenkgeschwindigkeit erkannt: Der gesamte Text läuft in ${(halfSwing / 1000).toLocaleString('de-DE', { maximumFractionDigits: 2 })} s über das Display.`;
-        }
-      }
-      lastDirectionChangeAt = now;
-    }
-    if (nextDirection !== 0) gammaDirection = nextDirection;
-  }
   sensorValues.alpha.textContent = formatSensorValue(smoothedOrientation.alpha);
   sensorValues.beta.textContent = formatSensorValue(smoothedOrientation.beta);
   sensorValues.gamma.textContent = formatSensorValue(smoothedOrientation.gamma);
@@ -244,8 +247,9 @@ async function startSensors(): Promise<void> {
     orientationEventsSeen = 0;
     smoothedAcceleration = { x: null, y: null, z: null };
     smoothedOrientation = { alpha: null, beta: null, gamma: null };
-    gammaDirection = 0;
-    lastDirectionChangeAt = null;
+    accelerationXDirection = 0;
+    previousAccelerationX = null;
+    lastAccelerationXReversalAt = null;
     povHalfSwingMs = null;
     povScrollCalibrated = false;
     povScrollOffset = 0;
