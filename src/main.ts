@@ -99,6 +99,9 @@ let lastAccelerationXReversalAt: number | null = null;
 let povScrollCalibrated = false;
 let povScrollDirection = 1;
 let povWaitingForDirectionChange = false;
+// Physical volume keys mark the outer scroll positions in fullscreen mode.
+let povLeftEndpoint: number | null = null;
+let povRightEndpoint: number | null = null;
 
 function normalizedMessage(): string {
   return messageInput.value.trim() || 'WAVE ME';
@@ -127,23 +130,28 @@ function frame(now: number): void {
   previousFrame = now;
 
   if (document.body.classList.contains('pov-mode')) {
-    // After measuring a left/right sway, make the whole message cross the screen
-    // in the time taken for one half-swing. Until then, use the normal speed setting.
+    // Volume + marks the leftmost position; volume - marks the rightmost.
+    // One measured sway interval is the available travel time between endpoints.
     const firstTextWidth = marquee.scrollWidth / 2;
-    const travelDistance = firstTextWidth + display.clientWidth;
-    const pixelsPerSecond = povScrollCalibrated && povHalfSwingMs
+    const defaultTravelDistance = firstTextWidth + display.clientWidth;
+    const hasEndpoints = povLeftEndpoint !== null && povRightEndpoint !== null;
+    const lowerBound = hasEndpoints ? Math.min(povLeftEndpoint!, povRightEndpoint!) : 0;
+    const upperBound = hasEndpoints ? Math.max(povLeftEndpoint!, povRightEndpoint!) : defaultTravelDistance;
+    const travelDistance = Math.max(0, upperBound - lowerBound);
+    const pixelsPerSecond = povScrollCalibrated && povHalfSwingMs && travelDistance > 0
       ? travelDistance / (povHalfSwingMs / 1000)
       : Number(speedInput.value);
+
     if (!povWaitingForDirectionChange) {
       povScrollOffset += povScrollDirection * pixelsPerSecond * elapsed;
-      if (travelDistance > 0 && povScrollOffset >= travelDistance) {
-        povScrollOffset = travelDistance;
+      if (povScrollOffset >= upperBound) {
+        povScrollOffset = upperBound;
         povWaitingForDirectionChange = true;
-        sensorMessage.textContent = 'Displayrand erreicht. Warte auf den nächsten Richtungswechsel.';
-      } else if (travelDistance > 0 && povScrollOffset <= 0) {
-        povScrollOffset = 0;
+        sensorMessage.textContent = 'Linker Endpunkt erreicht. Warte auf den nächsten X-Richtungswechsel.';
+      } else if (povScrollOffset <= lowerBound) {
+        povScrollOffset = lowerBound;
         povWaitingForDirectionChange = true;
-        sensorMessage.textContent = 'Displayrand erreicht. Warte auf den nächsten Richtungswechsel.';
+        sensorMessage.textContent = 'Rechter Endpunkt erreicht. Warte auf den nächsten X-Richtungswechsel.';
       }
     }
     marquee.style.transform = `translateX(${-povScrollOffset}px)`;
@@ -247,10 +255,11 @@ function onMotion(event: DeviceMotionEvent): void {
         }
       }
       lastAccelerationXReversalAt = now;
-      if (povWaitingForDirectionChange && document.body.classList.contains('pov-mode')) {
+      if (document.body.classList.contains('pov-mode')) {
+        // Reverse where the text currently is, even if it has not reached an endpoint.
         povScrollDirection *= -1;
         povWaitingForDirectionChange = false;
-        sensorMessage.textContent = 'Richtungswechsel erkannt. Der Text scrollt zur gegenüberliegenden Seite.';
+        sensorMessage.textContent = 'X-Richtungswechsel erkannt. Der Text wechselt an seiner aktuellen Position die Richtung.';
       }
     }
     if (nextDirection !== 0) accelerationXDirection = nextDirection;
@@ -390,6 +399,8 @@ async function enterPovFullscreen(): Promise<void> {
     povScrollOffset = 0;
     povScrollDirection = 1;
     povWaitingForDirectionChange = false;
+    povLeftEndpoint = null;
+    povRightEndpoint = null;
     if (!sensorsActive) sensorMessage.textContent = 'Starte die Sensoren und schwenke das Gerät einmal nach links und rechts, um die Scrollgeschwindigkeit zu kalibrieren.';
     else sensorMessage.textContent = 'Schwenke das Gerät einmal nach links und rechts, um die Scrollgeschwindigkeit zu kalibrieren.';
     if (!running) start();
@@ -422,8 +433,23 @@ document.addEventListener('fullscreenchange', () => {
   if (!document.fullscreenElement) document.body.classList.remove('pov-mode');
 });
 
-// Keyboard-friendly and useful when running in a desktop browser.
+// Volume-key events work in environments that forward them to the WebView.
+// Some Android builds intercept these keys natively and require native handling.
 document.addEventListener('keydown', (event) => {
+  if (document.body.classList.contains('pov-mode') && (event.code === 'AudioVolumeUp' || event.key === 'VolumeUp')) {
+    event.preventDefault();
+    povLeftEndpoint = povScrollOffset;
+    povWaitingForDirectionChange = false;
+    sensorMessage.textContent = 'Linken Endpunkt gesetzt (Volume +, ' + Math.round(povScrollOffset) + ' px).';
+    return;
+  }
+  if (document.body.classList.contains('pov-mode') && (event.code === 'AudioVolumeDown' || event.key === 'VolumeDown')) {
+    event.preventDefault();
+    povRightEndpoint = povScrollOffset;
+    povWaitingForDirectionChange = false;
+    sensorMessage.textContent = 'Rechten Endpunkt gesetzt (Volume −, ' + Math.round(povScrollOffset) + ' px).';
+    return;
+  }
   if (event.code === 'Space' && !(event.target instanceof HTMLTextAreaElement)) {
     event.preventDefault();
     running ? stop() : start();
