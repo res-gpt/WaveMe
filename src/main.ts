@@ -235,7 +235,7 @@ function calibratePovNeutralPosition(): void {
   }
   neutralGamma = smoothedOrientation.gamma;
   updatePovPreview();
-  sensorMessage.textContent = `Neutralposition gesetzt (γ ${neutralGamma.toFixed(1)}°). Vorschau und Vollbild-Richtungswechsel nutzen γ.`;
+  sensorMessage.textContent = `Neutralposition gesetzt (γ ${neutralGamma.toFixed(1)}°). Vorschau nutzt γ; die Scrollrichtung wechselt beim Vorzeichenwechsel von |a| − 9,81.`;
 }
 
 function formatSensorValue(value: number | null | undefined): string {
@@ -327,7 +327,7 @@ async function startSensors(): Promise<void> {
     sensorStartBtn.disabled = true;
     sensorStopBtn.disabled = false;
     sensorStatus.textContent = 'Warte auf Daten …';
-    sensorMessage.textContent = 'Freigabe erteilt. Gamma steuert den Richtungswechsel im Vollbildmodus.';
+    sensorMessage.textContent = 'Freigabe erteilt. Die Scrollrichtung wechselt im Vollbildmodus nur beim Vorzeichenwechsel von gravityCorrectedMagnitude.';
   } catch (error) {
     sensorStatus.textContent = 'Freigabe fehlt';
     sensorMessage.textContent = error instanceof Error ? error.message : 'Sensorzugriff konnte nicht gestartet werden.';
@@ -391,7 +391,7 @@ async function enterPovFullscreen(): Promise<void> {
     povLeftEndpoint = null;
     povRightEndpoint = null;
     if (!sensorsActive) sensorMessage.textContent = 'Stelle die Scrollgeschwindigkeit mit dem Regler ein. Alle 5° Gamma-Änderung wechselt die Richtung.';
-    else sensorMessage.textContent = 'Scrollgeschwindigkeit mit dem Regler einstellbar (100–500 px/s); Richtungswechsel alle 5° Gamma-Änderung.';
+    else sensorMessage.textContent = 'Scrollgeschwindigkeit mit dem Regler einstellbar (100–500 px/s); Richtungswechsel beim Vorzeichenwechsel von gravityCorrectedMagnitude.';
     if (!running) start();
   } catch {
     statusText.textContent = 'Vollbild nicht verfügbar';
