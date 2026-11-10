@@ -38,6 +38,54 @@ const sensorValues = {
   gamma: byId<HTMLElement>('orientGamma'),
 };
 
+
+type ScreenWakeLock = {
+  release: () => Promise<void>;
+  addEventListener: (type: 'release', listener: () => void) => void;
+};
+
+type WakeLockNavigator = Navigator & {
+  wakeLock?: {
+    request: (type: 'screen') => Promise<ScreenWakeLock>;
+  };
+};
+
+let screenWakeLock: ScreenWakeLock | null = null;
+let wakeLockRequestInProgress = false;
+
+// Keep the display awake while WaveMe is open and visible. Browsers release
+// the lock when the page is hidden, so request it again when the app returns.
+async function keepScreenAwake(): Promise<void> {
+  const wakeLockApi = (navigator as WakeLockNavigator).wakeLock;
+  if (!wakeLockApi || document.visibilityState !== 'visible' || screenWakeLock || wakeLockRequestInProgress) return;
+
+  wakeLockRequestInProgress = true;
+  try {
+    screenWakeLock = await wakeLockApi.request('screen');
+    screenWakeLock.addEventListener('release', () => {
+      screenWakeLock = null;
+      if (document.visibilityState === 'visible') void keepScreenAwake();
+    });
+  } catch {
+    // Wake Lock requires a supported browser, a visible page, and a secure context.
+    // The app remains usable if the platform does not grant the request.
+    screenWakeLock = null;
+  } finally {
+    wakeLockRequestInProgress = false;
+  }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') void keepScreenAwake();
+  else screenWakeLock = null;
+});
+
+window.addEventListener('pagehide', () => {
+  const lock = screenWakeLock;
+  screenWakeLock = null;
+  if (lock) void lock.release();
+});
+
 let running = false;
 let offset = 0;
 let previousFrame = 0;
@@ -382,6 +430,7 @@ document.addEventListener('keydown', (event) => {
   }
 });
 
+void keepScreenAwake();
 updateMessage();
 marquee.style.fontSize = `${sizeInput.value}px`;
 marquee.style.color = color;
