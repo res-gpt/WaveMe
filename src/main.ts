@@ -134,8 +134,12 @@ function frame(now: number): void {
     const lowerBound = hasEndpoints ? Math.min(povLeftEndpoint!, povRightEndpoint!) : 0;
     const upperBound = hasEndpoints ? Math.max(povLeftEndpoint!, povRightEndpoint!) : defaultTravelDistance;
     const travelDistance = Math.max(0, upperBound - lowerBound);
-    // Fullscreen speed is user-adjustable from 100 to 500 px/s.
-    const pixelsPerSecond = Math.max(100, Math.min(500, Number(speedInput.value)));
+    // The slider sets the base speed (100–500 px/s). Gravity-corrected
+    // acceleration scales it: near 0 m/s² keeps the base speed, stronger
+    // movement speeds it up, and opposite/noisy values slow it down gently.
+    const basePixelsPerSecond = Math.max(100, Math.min(500, Number(speedInput.value)));
+    const accelerationFactor = Math.max(0.25, Math.min(3, 1 + (gravityCorrectedMagnitude ?? 0) / 9.81));
+    const pixelsPerSecond = basePixelsPerSecond * accelerationFactor;
 
     // Reverse direction whenever gamma changes by at least 5° from the
     // previous reversal reference, in either direction.
