@@ -102,15 +102,23 @@ function smoothValue(previous: number | null, next: number | null): number | nul
 }
 
 let neutralGamma: number | null = null;
+let displayedPovShift = 0;
+const POV_DEAD_ZONE_DEGREES = 1.2;
+const POV_SHIFT_SMOOTHING = 0.18;
 
 function updatePovPreview(): void {
   const gamma = smoothedOrientation.gamma;
   const sensitivity = Number(povSensitivityInput.value);
   const relativeGamma = gamma !== null ? gamma - (neutralGamma ?? 0) : 0;
-  const shift = povPreviewToggle.checked && gamma !== null
-    ? Math.max(-70, Math.min(70, -relativeGamma * sensitivity))
+  const outsideDeadZone = Math.abs(relativeGamma) <= POV_DEAD_ZONE_DEGREES
+    ? 0
+    : Math.sign(relativeGamma) * (Math.abs(relativeGamma) - POV_DEAD_ZONE_DEGREES);
+  const targetShift = povPreviewToggle.checked && gamma !== null
+    ? Math.max(-70, Math.min(70, -outsideDeadZone * sensitivity))
     : 0;
-  marquee.style.setProperty('--pov-shift', `${shift.toFixed(1)}px`);
+  displayedPovShift += POV_SHIFT_SMOOTHING * (targetShift - displayedPovShift);
+  if (Math.abs(targetShift - displayedPovShift) < 0.15) displayedPovShift = targetShift;
+  marquee.style.setProperty('--pov-shift', `${displayedPovShift.toFixed(1)}px`);
 }
 
 function updatePovSensitivityLabel(): void {
@@ -162,6 +170,7 @@ function stopSensors(): void {
   sensorStartBtn.disabled = false;
   sensorStopBtn.disabled = true;
   sensorStatus.textContent = 'Nicht aktiv';
+  displayedPovShift = 0;
   marquee.style.setProperty('--pov-shift', '0px');
   if (motionEventsSeen === 0 && orientationEventsSeen === 0) {
     sensorMessage.textContent = 'Keine Sensordaten empfangen. Prüfe HTTPS, Geräteunterstützung und Browser-Berechtigungen.';
@@ -242,13 +251,38 @@ document.querySelectorAll<HTMLButtonElement>('.swatch').forEach((button) => {
   });
 });
 
-fullscreenBtn.addEventListener('click', async () => {
+async function enterPovFullscreen(): Promise<void> {
   try {
     if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
-    else await document.exitFullscreen();
+    document.body.classList.add('pov-mode');
+    if (!running) start();
   } catch {
     statusText.textContent = 'Vollbild nicht verfügbar';
   }
+}
+
+async function exitPovFullscreen(): Promise<void> {
+  document.body.classList.remove('pov-mode');
+  if (document.fullscreenElement) {
+    try {
+      await document.exitFullscreen();
+    } catch {
+      statusText.textContent = 'Vollbild konnte nicht beendet werden';
+    }
+  }
+}
+
+fullscreenBtn.addEventListener('click', () => {
+  if (document.body.classList.contains('pov-mode')) void exitPovFullscreen();
+  else void enterPovFullscreen();
+});
+
+display.addEventListener('click', () => {
+  if (document.body.classList.contains('pov-mode')) void exitPovFullscreen();
+});
+
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement) document.body.classList.remove('pov-mode');
 });
 
 // Keyboard-friendly and useful when running in a desktop browser.

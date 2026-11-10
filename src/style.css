@@ -19,7 +19,7 @@ button:disabled { opacity: .42; cursor: not-allowed; }
 #app { max-width: 760px; margin: 0 auto; padding: max(16px, env(safe-area-inset-top)) 18px max(24px, env(safe-area-inset-bottom)); }
 .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; }
 .brand { display: flex; align-items: center; gap: 10px; font-size: 19px; font-weight: 800; letter-spacing: -.04em; }
-.brand-mark { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 11px; color: #07100f; background: var(--mint); font-size: 28px; line-height: 1; }
+.brand-mark { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 11px; color: #07100f; background: var(--mint); font-size: 28px; line-height: 1; }
 .icon-button { width: 42px; height: 42px; border: 1px solid var(--border); border-radius: 13px; color: #e6edf5; background: #121821; font-size: 24px; }
 .display-shell { border: 1px solid #28333c; background: #030506; border-radius: 20px; padding: 10px; box-shadow: 0 18px 50px #0008, inset 0 0 0 1px #ffffff04; }
 .display { height: clamp(180px, 29vh, 260px); position: relative; display: flex; align-items: center; overflow: hidden; border-radius: 12px; background: #020303; }
@@ -65,3 +65,44 @@ input[type="range"] { width: 100%; margin: 14px 0 0; accent-color: var(--mint); 
 .pov-calibration { margin-top: 16px; }
 .calibration-button { width: 100%; margin-top: 14px; }
 .calibration-help { margin: 9px 0 0; color: #8d9aaa; font-size: 11px; line-height: 1.5; }
+
+
+/* Immersive POV mode: only the moving letters remain visible. */
+body.pov-mode {
+  min-width: 0;
+  min-height: 100dvh;
+  overflow: hidden;
+  background: #020303;
+}
+body.pov-mode #app {
+  width: 100vw;
+  max-width: none;
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+}
+body.pov-mode .topbar,
+body.pov-mode main > :not(.display-shell) {
+  display: none !important;
+}
+body.pov-mode main,
+body.pov-mode .display-shell {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: #020303;
+}
+body.pov-mode .display {
+  width: 100vw;
+  height: 100dvh;
+  min-height: 0;
+  border-radius: 0;
+  background: #020303;
+}
+body.pov-mode .marquee {
+  padding-left: 8px;
+}
