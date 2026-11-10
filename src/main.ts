@@ -160,7 +160,7 @@ function frame(now: number): void {
     const outsideDeadZone = Math.abs(relativeGamma) <= POV_DEAD_ZONE_DEGREES
       ? 0
       : Math.sign(relativeGamma) * (Math.abs(relativeGamma) - POV_DEAD_ZONE_DEGREES);
-    const previewEquivalentShift = sensorsActive && gamma !== null && povPreviewToggle.checked
+    const previewEquivalentShift = sensorsActive && gamma !== null
       ? Math.max(-70, Math.min(70, -outsideDeadZone * Number(povSensitivityInput.value)))
       : 0;
     const fullscreenTiltShift = travelDistance > 0
