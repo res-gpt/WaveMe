@@ -155,12 +155,12 @@ function frame(now: number): void {
     }
     // Apply the same tilt response as the preview, expanded to the full
     // available text travel so the movement remains clearly visible fullscreen.
-    const alpha = smoothedOrientation.alpha;
-    const relativeAlpha = alpha !== null ? alpha - (neutralAlpha ?? 0) : 0;
-    const outsideDeadZone = Math.abs(relativeAlpha) <= POV_DEAD_ZONE_DEGREES
+    const gamma = smoothedOrientation.gamma;
+    const relativeGamma = gamma !== null ? gamma - (neutralGamma ?? 0) : 0;
+    const outsideDeadZone = Math.abs(relativeGamma) <= POV_DEAD_ZONE_DEGREES
       ? 0
-      : Math.sign(relativeAlpha) * (Math.abs(relativeAlpha) - POV_DEAD_ZONE_DEGREES);
-    const previewEquivalentShift = sensorsActive && alpha !== null
+      : Math.sign(relativeGamma) * (Math.abs(relativeGamma) - POV_DEAD_ZONE_DEGREES);
+    const previewEquivalentShift = sensorsActive && gamma !== null
       ? Math.max(-70, Math.min(70, -outsideDeadZone * Number(povSensitivityInput.value)))
       : 0;
     const fullscreenTiltShift = travelDistance > 0
