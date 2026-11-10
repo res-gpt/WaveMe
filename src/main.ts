@@ -31,6 +31,7 @@ const povSensitivityOutput = byId<HTMLOutputElement>('povSensitivityOutput');
 const povCalibrateBtn = byId<HTMLButtonElement>('povCalibrateBtn');
 const sensorValues = {
   vector: byId<HTMLElement>('accelVector'),
+  magnitude: byId<HTMLElement>('accelMagnitude'),
   alpha: byId<HTMLElement>('orientAlpha'),
   beta: byId<HTMLElement>('orientBeta'),
   gamma: byId<HTMLElement>('orientGamma'),
@@ -264,6 +265,14 @@ function onMotion(event: DeviceMotionEvent): void {
   }
   previousAccelerationX = accelerationX;
   sensorValues.vector.textContent = `(${formatSensorValue(smoothedAcceleration.x)}, ${formatSensorValue(smoothedAcceleration.y)}, ${formatSensorValue(smoothedAcceleration.z)}) m/s²`;
+  const { x, y, z } = smoothedAcceleration;
+  if (x !== null && y !== null && z !== null) {
+    const magnitude = Math.sqrt(x * x + y * y + z * z);
+    const gravityCorrectedMagnitude = magnitude - 9.81;
+    sensorValues.magnitude.textContent = `|a| = ${magnitude.toFixed(2)} m/s² · |a| − 9,81 = ${gravityCorrectedMagnitude.toFixed(2)} m/s²`;
+  } else {
+    sensorValues.magnitude.textContent = 'nicht verfügbar';
+  }
   sensorStatus.textContent = 'Aktiv';
   if (!povScrollCalibrated && !povWaitingForDirectionChange) {
     sensorMessage.textContent = 'Bewegungsdaten werden empfangen.';
