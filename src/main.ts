@@ -112,26 +112,16 @@ function updateMessage(): void {
   if (document.body.classList.contains('pov-mode')) fitFullscreenText();
 }
 
-/** Fit the whole message into the fullscreen width, while respecting screen height. */
+/** Maximize fullscreen font size while keeping the full glyph height inside the display. */
 function fitFullscreenText(): void {
   if (!document.body.classList.contains('pov-mode')) return;
-  const availableWidth = Math.max(1, display.clientWidth * 0.96);
-  const maxHeightSize = Math.max(12, display.clientHeight * 0.88);
-  let low = 8;
-  let high = maxHeightSize;
-  let best = low;
-  for (let i = 0; i < 14; i += 1) {
-    const candidate = (low + high) / 2;
-    marquee.style.fontSize = `${candidate}px`;
-    const oneCopyWidth = marquee.scrollWidth / 2;
-    if (oneCopyWidth <= availableWidth) {
-      best = candidate;
-      low = candidate;
-    } else {
-      high = candidate;
-    }
-  }
-  marquee.style.fontSize = `${best}px`;
+  const displayHeight = display.clientHeight;
+  if (displayHeight <= 0) return;
+
+  // The marquee line-height is 1.1, so leave a small safety margin for glyph
+  // metrics and device/browser rounding instead of letting the text clip.
+  const fontSize = Math.floor(displayHeight / 1.15);
+  marquee.style.fontSize = `${fontSize}px`;
 }
 
 function updateStatus(isRunning: boolean): void {
