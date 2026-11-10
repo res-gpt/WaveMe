@@ -148,28 +148,12 @@ function frame(now: number): void {
   const elapsed = Math.min((now - previousFrame) / 1000, 0.05);
   previousFrame = now;
 
-  const isFullscreen = document.body.classList.contains('pov-mode');
-  if (isFullscreen && sensorsActive && gravityCorrectedMagnitude !== null && gravityCorrectedMagnitude !== 0) {
-    const currentSign: -1 | 1 = gravityCorrectedMagnitude > 0 ? 1 : -1;
-    if (lastGravityCorrectedSign === null) {
-      lastGravityCorrectedSign = currentSign;
-    } else if (currentSign !== lastGravityCorrectedSign) {
-      povScrollDirection *= -1;
-      lastGravityCorrectedSign = currentSign;
-    }
-  }
-
+  // Preview and fullscreen deliberately use exactly the same scroll calculation.
   const firstTextWidth = marquee.scrollWidth / 2;
   if (firstTextWidth > 0) {
     const baseSpeed = Math.max(100, Math.min(500, Number(speedInput.value)));
-    const accelerationFactor = isFullscreen
-      ? Math.max(0.25, Math.min(3, 1 + (gravityCorrectedMagnitude ?? 0) / 9.81))
-      : 1;
-    const direction = isFullscreen ? povScrollDirection : 1;
-    offset += direction * baseSpeed * accelerationFactor * elapsed;
-    if (isFullscreen) povScrollOffset = offset;
+    offset += baseSpeed * elapsed;
     offset = ((offset % firstTextWidth) + firstTextWidth) % firstTextWidth;
-    if (isFullscreen) povScrollOffset = offset;
   }
   marquee.style.transform = `translateX(calc(${-offset}px + var(--pov-shift, 0px)))`;
   animationId = requestAnimationFrame(frame);
@@ -319,7 +303,7 @@ async function startSensors(): Promise<void> {
     offset = 0;
     povScrollOffset = 0;
     povScrollDirection = 1;
-    lastGravityCorrectedSign = gravityCorrectedMagnitude === null || gravityCorrectedMagnitude === 0 ? null : gravityCorrectedMagnitude > 0 ? 1 : -1;
+    lastGravityCorrectedSign = null;
     povWaitingForDirectionChange = false;
     window.addEventListener('devicemotion', onMotion);
     window.addEventListener('deviceorientation', onOrientation);
@@ -327,7 +311,7 @@ async function startSensors(): Promise<void> {
     sensorStartBtn.disabled = true;
     sensorStopBtn.disabled = false;
     sensorStatus.textContent = 'Warte auf Daten …';
-    sensorMessage.textContent = 'Sensoren aktiv. Vorschau reagiert auf Neigung; im Vollbild skaliert gravityCorrectedMagnitude die Geschwindigkeit und sein Vorzeichenwechsel kehrt die Richtung um.';
+    sensorMessage.textContent = 'Sensoren aktiv. Vorschau und Vollbild reagieren identisch auf Neigung; die Sensoren verschieben den Text, ändern aber nicht die Scrollgeschwindigkeit.';
   } catch (error) {
     sensorStatus.textContent = 'Freigabe fehlt';
     sensorMessage.textContent = error instanceof Error ? error.message : 'Sensorzugriff konnte nicht gestartet werden.';
@@ -385,18 +369,17 @@ async function enterPovFullscreen(): Promise<void> {
   try {
     if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
     document.body.classList.add('pov-mode');
-    offset = 0;
-    povScrollOffset = 0;
-    offset = 0;
+    // Preserve the current scroll position when switching display modes.
+    povScrollOffset = offset;
     povScrollDirection = 1;
     lastGravityCorrectedSign = gravityCorrectedMagnitude === null || gravityCorrectedMagnitude === 0 ? null : gravityCorrectedMagnitude > 0 ? 1 : -1;
     povWaitingForDirectionChange = false;
     povLeftEndpoint = null;
     povRightEndpoint = null;
     fitFullscreenText();
-    if (!sensorsActive) sensorMessage.textContent = 'Vollbild nutzt dieselbe Laufschrift wie die Vorschau. Mit aktiven Bewegungssensoren skaliert die Beschleunigung die Geschwindigkeit und ein Vorzeichenwechsel kehrt die Richtung um.';
-    else sensorMessage.textContent = 'Vollbild: gleiche Laufschrift wie Vorschau; Geschwindigkeit 100–500 px/s, dynamisch durch gravityCorrectedMagnitude skaliert. Richtungswechsel nur bei Vorzeichenwechsel.';
-    if (!running) start();
+    if (!sensorsActive) sensorMessage.textContent = 'Vollbild und Vorschau verwenden dieselbe Scroll- und Sensorlogik.';
+    else sensorMessage.textContent = 'Vollbild und Vorschau verwenden dieselbe Scroll- und Sensorlogik. Start und Stopp erfolgen weiterhin über dieselben Steuerelemente.';
+    // Do not auto-start when entering fullscreen: preserve the preview's running/stopped state.
   } catch {
     statusText.textContent = 'Vollbild nicht verfügbar';
   }
