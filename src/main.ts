@@ -1,4 +1,5 @@
 import './style.css';
+import { VolumeButtons } from '@capacitor-community/volume-buttons';
 
 const byId = <T extends HTMLElement>(id: string) => {
   const element = document.getElementById(id);
@@ -392,6 +393,37 @@ document.querySelectorAll<HTMLButtonElement>('.swatch').forEach((button) => {
   });
 });
 
+let nativeVolumeButtonsWatching = false;
+
+async function startNativeVolumeButtonWatch(): Promise<void> {
+  if (nativeVolumeButtonsWatching) return;
+  try {
+    await VolumeButtons.watchVolume({ suppressVolumeIndicator: true }, ({ direction }) => {
+      if (!document.body.classList.contains('pov-mode')) return;
+      if (direction === 'up') {
+        povLeftEndpoint = povScrollOffset;
+        sensorMessage.textContent = 'Linken Endpunkt gesetzt (Volume +, ' + Math.round(povScrollOffset) + ' px).';
+      } else {
+        povRightEndpoint = povScrollOffset;
+        sensorMessage.textContent = 'Rechten Endpunkt gesetzt (Volume −, ' + Math.round(povScrollOffset) + ' px).';
+      }
+    });
+    nativeVolumeButtonsWatching = true;
+  } catch {
+    sensorMessage.textContent = 'Die Hardware-Lautstärketasten konnten nicht aktiviert werden. Bitte prüfe, ob die neue APK mit nativer Volume-Buttons-Unterstützung gebaut wurde.';
+  }
+}
+
+async function stopNativeVolumeButtonWatch(): Promise<void> {
+  if (!nativeVolumeButtonsWatching) return;
+  try {
+    await VolumeButtons.clearWatch();
+  } catch {
+    // Nothing else to do if the native listener has already been released.
+  }
+  nativeVolumeButtonsWatching = false;
+}
+
 async function enterPovFullscreen(): Promise<void> {
   try {
     if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
@@ -401,6 +433,7 @@ async function enterPovFullscreen(): Promise<void> {
     povWaitingForDirectionChange = false;
     povLeftEndpoint = null;
     povRightEndpoint = null;
+    void startNativeVolumeButtonWatch();
     if (!sensorsActive) sensorMessage.textContent = 'Starte die Sensoren und schwenke das Gerät einmal nach links und rechts, um die Scrollgeschwindigkeit zu kalibrieren.';
     else sensorMessage.textContent = 'Schwenke das Gerät einmal nach links und rechts, um die Scrollgeschwindigkeit zu kalibrieren.';
     if (!running) start();
@@ -411,6 +444,7 @@ async function enterPovFullscreen(): Promise<void> {
 
 async function exitPovFullscreen(): Promise<void> {
   document.body.classList.remove('pov-mode');
+  await stopNativeVolumeButtonWatch();
   if (document.fullscreenElement) {
     try {
       await document.exitFullscreen();
