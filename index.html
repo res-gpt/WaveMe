@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#05070a" />
+    <meta name="description" content="WaveMe – gut lesbarer, scrollender Text auf deinem Handy." />
+    <title>WaveMe</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <div class="brand"><span class="brand-mark">≈</span><span>WaveMe</span></div>
+        <button id="fullscreenBtn" class="icon-button" type="button" aria-label="Vollbild">⛶</button>
+      </header>
+
+      <main>
+        <section class="display-shell" aria-label="Textanzeige">
+          <div id="display" class="display">
+            <div id="marquee" class="marquee">WAVE ME</div>
+          </div>
+          <div class="display-footer">
+            <span id="statusDot" class="status-dot"></span>
+            <span id="statusText">Bereit</span>
+            <span class="display-hint">ANZEIGE</span>
+          </div>
+        </section>
+
+        <section class="controls" aria-label="Textsteuerung">
+          <label for="messageInput">Dein Text</label>
+          <textarea id="messageInput" rows="2" maxlength="180" placeholder="Deine Nachricht …">WAVE ME</textarea>
+
+          <div class="button-row">
+            <button id="startBtn" class="primary-button" type="button">▶ Start</button>
+            <button id="stopBtn" class="secondary-button" type="button">■ Stopp</button>
+          </div>
+
+          <div class="setting">
+            <div class="setting-heading"><label for="speedInput">Scrollgeschwindigkeit</label><output id="speedOutput">90 px/s</output></div>
+            <input id="speedInput" type="range" min="20" max="220" step="5" value="90" />
+            <div class="range-labels"><span>Langsam</span><span>Schnell</span></div>
+          </div>
+
+          <div class="setting">
+            <div class="setting-heading"><label for="sizeInput">Schriftgrösse</label><output id="sizeOutput">56 px</output></div>
+            <input id="sizeInput" type="range" min="24" max="112" step="2" value="56" />
+          </div>
+
+          <div class="setting">
+            <div class="setting-heading"><span>Textfarbe</span><span class="muted">Kontrastreich</span></div>
+            <div class="swatches" role="group" aria-label="Textfarbe">
+              <button class="swatch selected" type="button" data-color="#49f5d0" aria-label="Türkis" style="--swatch:#49f5d0"></button>
+              <button class="swatch" type="button" data-color="#ffffff" aria-label="Weiss" style="--swatch:#ffffff"></button>
+              <button class="swatch" type="button" data-color="#ffe45e" aria-label="Gelb" style="--swatch:#ffe45e"></button>
+              <button class="swatch" type="button" data-color="#ff6b8a" aria-label="Pink" style="--swatch:#ff6b8a"></button>
+              <button class="swatch" type="button" data-color="#7aa7ff" aria-label="Blau" style="--swatch:#7aa7ff"></button>
+            </div>
+          </div>
+        </section>
+
+        <p class="footnote">Der Prototyp läuft lokal im Gerät. Keine Anmeldung, kein Backend.</p>
+      </main>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
