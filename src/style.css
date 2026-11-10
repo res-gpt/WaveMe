@@ -106,3 +106,23 @@ body.pov-mode .display {
 body.pov-mode .marquee {
   padding-left: 8px;
 }
+
+
+/* Adjustable blinking for the displayed text. */
+body.blink-enabled .marquee {
+  animation: wave-blink var(--blink-duration, 1s) steps(1, end) infinite;
+}
+@keyframes wave-blink {
+  0%, 49.9% { opacity: 1; }
+  50%, 100% { opacity: 0.08; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body.blink-enabled .marquee { animation: none; }
+}
+
+/* In immersive mode, use almost the full screen height for the letters. */
+body.pov-mode .marquee {
+  font-size: 88dvh !important;
+  line-height: 1;
+  padding-left: 0;
+}
