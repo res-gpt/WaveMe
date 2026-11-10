@@ -93,7 +93,7 @@ let color = '#49f5d0';
 let povScrollOffset = 0;
 let gravityCorrectedMagnitude: number | null = null;
 let povScrollDirection = 1;
-let lastGammaDirectionReference: number | null = null;
+let lastGravityCorrectedSign: -1 | 1 | null = null;
 let povWaitingForDirectionChange = false;
 // Physical volume keys mark the outer scroll positions in fullscreen mode.
 let povLeftEndpoint: number | null = null;
@@ -141,16 +141,16 @@ function frame(now: number): void {
     const accelerationFactor = Math.max(0.25, Math.min(3, 1 + (gravityCorrectedMagnitude ?? 0) / 9.81));
     const pixelsPerSecond = basePixelsPerSecond * accelerationFactor;
 
-    // Reverse direction whenever gamma changes by at least 5° from the
-    // previous reversal reference, in either direction.
-    const gamma = smoothedOrientation.gamma;
-    if (sensorsActive && gamma !== null) {
-      if (lastGammaDirectionReference === null) {
-        lastGammaDirectionReference = gamma;
-      } else if (Math.abs(gamma - lastGammaDirectionReference) >= 5) {
+    // Reverse direction only when gravity-corrected acceleration changes sign.
+    // Ignore exact zero so a zero reading alone cannot trigger a reversal.
+    if (sensorsActive && gravityCorrectedMagnitude !== null && gravityCorrectedMagnitude !== 0) {
+      const currentSign: -1 | 1 = gravityCorrectedMagnitude > 0 ? 1 : -1;
+      if (lastGravityCorrectedSign === null) {
+        lastGravityCorrectedSign = currentSign;
+      } else if (currentSign !== lastGravityCorrectedSign) {
         povScrollDirection *= -1;
         povWaitingForDirectionChange = false;
-        lastGammaDirectionReference = gamma;
+        lastGravityCorrectedSign = currentSign;
       }
     }
 
@@ -319,7 +319,7 @@ async function startSensors(): Promise<void> {
     gravityCorrectedMagnitude = null;
     povScrollOffset = 0;
     povScrollDirection = 1;
-    lastGammaDirectionReference = smoothedOrientation.gamma;
+    lastGravityCorrectedSign = null;
     povWaitingForDirectionChange = false;
     window.addEventListener('devicemotion', onMotion);
     window.addEventListener('deviceorientation', onOrientation);
@@ -386,7 +386,7 @@ async function enterPovFullscreen(): Promise<void> {
     document.body.classList.add('pov-mode');
     povScrollOffset = 0;
     povScrollDirection = 1;
-    lastGammaDirectionReference = smoothedOrientation.gamma;
+    lastGravityCorrectedSign = null;
     povWaitingForDirectionChange = false;
     povLeftEndpoint = null;
     povRightEndpoint = null;
