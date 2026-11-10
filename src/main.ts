@@ -369,9 +369,8 @@ async function enterPovFullscreen(): Promise<void> {
   try {
     if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
     document.body.classList.add('pov-mode');
-    offset = 0;
-    povScrollOffset = 0;
-    offset = 0;
+    // Preserve the current scroll position when switching display modes.
+    povScrollOffset = offset;
     povScrollDirection = 1;
     lastGravityCorrectedSign = gravityCorrectedMagnitude === null || gravityCorrectedMagnitude === 0 ? null : gravityCorrectedMagnitude > 0 ? 1 : -1;
     povWaitingForDirectionChange = false;
