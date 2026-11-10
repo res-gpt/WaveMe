@@ -45,7 +45,6 @@ let animationId = 0;
 let color = '#49f5d0';
 let povScrollOffset = 0;
 let povHalfSwingMs: number | null = null;
-let lastGammaForDirection: number | null = null;
 let gammaDirection = 0;
 let lastDirectionChangeAt: number | null = null;
 let povScrollCalibrated = false;
@@ -198,7 +197,6 @@ function onOrientation(event: DeviceOrientationEvent): void {
       lastDirectionChangeAt = now;
     }
     if (nextDirection !== 0) gammaDirection = nextDirection;
-    lastGammaForDirection = gamma;
   }
   sensorValues.alpha.textContent = formatSensorValue(smoothedOrientation.alpha);
   sensorValues.beta.textContent = formatSensorValue(smoothedOrientation.beta);
